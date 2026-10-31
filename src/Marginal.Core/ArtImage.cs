@@ -36,6 +36,16 @@ public static class ArtImage
     {
         if (ImageSize.Read(image) is not { } size) return null;
         if ((long)size.Width * size.Height > MaxPixels) return null;
+        // Padding to a square makes a bigger picture than the one read: a
+        // 20000 x 1000 strip became 400 MP (security review 2026-10-31, A5).
+        var side = (long)Math.Max(size.Width, size.Height);
+        if (shape == ArtShape.PadSquare && side * side > MaxPixels) return null;
+        try { return Make(image, size, shape, maxSide, quality, strip); }
+        catch (Exception) { return null; }   // Skia could not allocate: too big after all
+    }
+
+    private static byte[]? Make(byte[] image, (int Width, int Height) size, ArtShape shape, int? maxSide, int? quality, bool strip)
+    {
         var shrink = maxSide is { } m && Math.Max(size.Width, size.Height) > m;
         var square = shape != ArtShape.AsPrinted && size.Width != size.Height;
         if (!shrink && !square && quality is null && IsJpeg(image))

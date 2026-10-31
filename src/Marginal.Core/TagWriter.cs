@@ -12,9 +12,18 @@
 //      audio and AFTER it (tags, pictures, padding, an MP4's boxes), with a
 //      hash of the whole original and of its audio. Since the audio is proven
 //      the same, that is all it takes to rebuild the original exactly.
-//   5. Swap by two renames in the folder: original -> "<name>.marginal-old",
-//      copy -> original; then the old file goes. A power cut leaves the old
-//      file, the new one, or both, never half of one.
+//   5. Swap by one rename in the folder: the copy replaces the original
+//      (rename(2) on macOS and Linux, ReplaceFile on Windows). A power cut
+//      leaves the old file or the new one, never half of one. (It was two
+//      renames by way of "<name>.marginal-old" until the 2026-10-31 review,
+//      B3 and B4: a planted .marginal-old blocked the write, and a failure
+//      between the two left the original hidden.)
+//
+// Only plain files are written: a link, a pipe or a device is refused
+// (SafeFiles.WriteProblem). The manifest Undo reads is written after every
+// file, so a crash part-way still leaves Undo for what was done, and it is
+// checked when read: every path one Write could have produced, every backup
+// file inside its batch folder (review B6, I2).
 //
 // Undo rebuilds: old front + the file's current audio + old back, into a
 // working copy that must hash exactly like the original did, then the same
@@ -69,7 +78,6 @@ public static class TagWriter
     /// Working copies start with this, so the library scan never lists one.
     public const string TempPrefix = ".marginal-";
 
-    private const string OldSuffix = ".marginal-old";
     private const string Manifest = "manifest.tsv";
 
     /// Where backups live (spec §9.1): the app's own data folder, never the library.
@@ -98,7 +106,11 @@ public static class TagWriter
         foreach (var c in changes.Where(c => c.Op is ChangeOp.WriteImage or ChangeOp.WriteText))
         {
             n++;
-            try { images.Add(WriteImage(c, batchFolder, $"{n:D3} {Path.GetFileName(c.Path)}")); }
+            try
+            {
+                images.Add(WriteImage(c, batchFolder, $"{n:D3} {Path.GetFileName(c.Path)}"));
+                SaveManifest(batchFolder, done, images);
+            }
             catch (Exception ex) { problems.Add((Path.GetFileName(c.Path), ex.Message)); }
         }
 
@@ -109,6 +121,7 @@ public static class TagWriter
             var temp = TempBeside(path);
             try
             {
+                if (SafeFiles.WriteProblem(path) is { } refused) throw new IOException(refused);
                 var before = TrackReader.Read(path);
                 if (before.Problem is not null) throw new IOException(before.Problem);
 
@@ -126,6 +139,7 @@ public static class TagWriter
                 var entry = SaveBackup(path, batchFolder, $"{n:D3} {Path.GetFileName(path)}");
                 Swap(path, temp);
                 done.Add(entry);
+                SaveManifest(batchFolder, done, images);
             }
             catch (Exception ex)
             {
@@ -139,11 +153,17 @@ public static class TagWriter
             try { Directory.Delete(batchFolder, recursive: true); } catch (IOException) { }
             return new WriteResult(null, problems);
         }
-        var batch = new WriteBatch(batchFolder, time, done, images);
-        System.IO.File.WriteAllLines(Path.Combine(batchFolder, Manifest),
-            done.Select(d => string.Join('\t', d.Original, Path.GetFileName(d.Head), Path.GetFileName(d.Tail), d.Sha256, d.AudioSha256))
+        return new WriteResult(new WriteBatch(batchFolder, time, done, images), problems);
+    }
+
+    /// The manifest for what is done so far, replaced whole by a rename.
+    private static void SaveManifest(string batchFolder, IEnumerable<BackupEntry> files, IEnumerable<ImageEntry> images)
+    {
+        var temp = Path.Combine(batchFolder, Manifest + ".new");
+        System.IO.File.WriteAllLines(temp,
+            files.Select(d => string.Join('\t', d.Original, Path.GetFileName(d.Head), Path.GetFileName(d.Tail), d.Sha256, d.AudioSha256))
                 .Concat(images.Select(i => string.Join('\t', "IMG", i.Path, i.Old is null ? "" : Path.GetFileName(i.Old), i.Sha256))));
-        return new WriteResult(batch, problems);
+        System.IO.File.Move(temp, Path.Combine(batchFolder, Manifest), overwrite: true);
     }
 
     /// The newest write not yet undone, for the Undo button. Older ones come
@@ -152,22 +172,70 @@ public static class TagWriter
     {
         backupRoot ??= DefaultBackupRoot;
         if (!Directory.Exists(backupRoot)) return null;
-        foreach (var dir in Directory.EnumerateDirectories(backupRoot).OrderByDescending(d => d, StringComparer.Ordinal))
+        IEnumerable<string> dirs;
+        try { dirs = Directory.GetDirectories(backupRoot).OrderByDescending(d => d, StringComparer.Ordinal).ToList(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+        foreach (var dir in dirs)
         {
-            var manifest = Path.Combine(dir, Manifest);
-            if (!System.IO.File.Exists(manifest)) continue;
-            var lines = System.IO.File.ReadAllLines(manifest).Select(l => l.Split('\t')).ToList();
-            var files = lines.Where(p => p.Length == 5 && p[0] != "IMG")
-                .Select(p => new BackupEntry(p[0], Path.Combine(dir, p[1]), Path.Combine(dir, p[2]), p[3], p[4])).ToList();
-            var images = lines.Where(p => p.Length == 4 && p[0] == "IMG")
-                .Select(p => new ImageEntry(p[1], p[2].Length == 0 ? null : Path.Combine(dir, p[2]), p[3])).ToList();
-            if (files.Count == 0 && images.Count == 0) continue;
-            var time = DateTime.TryParseExact(Path.GetFileName(dir), "yyyyMMdd-HHmmss-fff", null,
-                System.Globalization.DateTimeStyles.None, out var t) ? t : Directory.GetCreationTime(dir);
-            return new WriteBatch(dir, time, files, images);
+            try
+            {
+                if (ReadBatch(dir) is { } batch) return batch;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }   // unreadable: passed over (review I1)
         }
         return null;
     }
+
+    /// A batch folder's manifest, checked line by line (review B6): a
+    /// manifest is data from disk, and one that names anything a Write could
+    /// not have produced is not used at all. Null when there is none to undo.
+    private static WriteBatch? ReadBatch(string dir)
+    {
+        var manifest = Path.Combine(dir, Manifest);
+        if (!System.IO.File.Exists(manifest) || SafeFiles.IsLink(dir) || SafeFiles.IsLink(manifest)) return null;
+        var files = new List<BackupEntry>();
+        var images = new List<ImageEntry>();
+        foreach (var line in System.IO.File.ReadAllLines(manifest))
+        {
+            var p = line.Split('\t');
+            if (p.Length == 5 && p[0] != "IMG"
+                && IsTarget(p[0]) && TrackReader.IsMusic(p[0])
+                && InBatch(dir, p[1]) && InBatch(dir, p[2]) && IsHash(p[3]) && IsHash(p[4]))
+                files.Add(new BackupEntry(p[0], Path.Combine(dir, p[1]), Path.Combine(dir, p[2]), p[3], p[4]));
+            else if (p.Length == 4 && p[0] == "IMG"
+                     && IsTarget(p[1]) && IsSideFile(p[1])
+                     && (p[2].Length == 0 || InBatch(dir, p[2])) && IsHash(p[3]))
+                images.Add(new ImageEntry(p[1], p[2].Length == 0 ? null : Path.Combine(dir, p[2]), p[3]));
+            else if (line.Length > 0)
+                return null;
+        }
+        if (files.Count == 0 && images.Count == 0) return null;
+        var time = DateTime.TryParseExact(Path.GetFileName(dir), "yyyyMMdd-HHmmss-fff", null,
+            System.Globalization.DateTimeStyles.None, out var t) ? t : Directory.GetCreationTime(dir);
+        return new WriteBatch(dir, time, files, images);
+    }
+
+    /// A full path with nothing to resolve (no "..", no relative part).
+    private static bool IsTarget(string path) =>
+        Path.IsPathFullyQualified(path) && Path.GetFullPath(path) == path
+        && !Path.GetFileName(path).StartsWith(TempPrefix, StringComparison.Ordinal);
+
+    /// What Write saves beside the tracks: cover.jpg, back.jpg, a .lrc, a booklet page.
+    private static bool IsSideFile(string path)
+    {
+        var name = Path.GetFileName(path).ToLowerInvariant();
+        return name is "cover.jpg" or "back.jpg" or "folder.jpg"
+               || name.EndsWith(".lrc", StringComparison.Ordinal)
+               || (name.EndsWith(".jpg", StringComparison.Ordinal)
+                   && Path.GetFileName(Path.GetDirectoryName(path))?.Equals("booklet", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    /// A backup file's name: a plain name, of a plain file in the batch folder.
+    private static bool InBatch(string dir, string name) =>
+        name.Length > 0 && Path.GetFileName(name) == name && name is not ("." or "..")
+        && System.IO.File.Exists(Path.Combine(dir, name)) && !SafeFiles.IsLink(Path.Combine(dir, name));
+
+    private static bool IsHash(string s) => s.Length == 64 && s.All(char.IsAsciiHexDigit);
 
     /// Rebuilds every original of `batch` in place: its old front and back
     /// around the file's audio as it is now, checked against the original's
@@ -175,6 +243,8 @@ public static class TagWriter
     public static IReadOnlyList<(string File, string Problem)> Undo(WriteBatch batch)
     {
         var problems = new List<(string, string)>();
+        var failedFiles = new List<BackupEntry>();
+        var failedImages = new List<ImageEntry>();
         foreach (var entry in batch.Files)
         {
             var path = entry.Original;
@@ -182,6 +252,7 @@ public static class TagWriter
             try
             {
                 if (!System.IO.File.Exists(path)) throw new IOException("the file is gone");
+                if (SafeFiles.WriteProblem(path) is { } refused) throw new IOException(refused);
                 if (!System.IO.File.Exists(entry.Head) || !System.IO.File.Exists(entry.Tail)) throw new IOException("the backup is gone");
                 if (AudioHash(path) is not { } audio || Convert.ToHexString(audio) != entry.AudioSha256)
                     throw new IOException("its audio has changed since the write, so there is nothing to go back to");
@@ -204,19 +275,28 @@ public static class TagWriter
             {
                 try { if (System.IO.File.Exists(temp)) System.IO.File.Delete(temp); } catch (IOException) { }
                 problems.Add((Path.GetFileName(path), ex.Message));
+                failedFiles.Add(entry);
             }
         }
         foreach (var image in batch.Images)
         {
             try
             {
+                if (SafeFiles.WriteProblem(image.Path) is { } refused) throw new IOException(refused);
                 if (image.Old is not null)
                 {
                     if (!System.IO.File.Exists(image.Old)) throw new IOException("the backup is gone");
                     var temp = TempBeside(image.Path);
-                    System.IO.File.Copy(image.Old, temp);
-                    if (System.IO.File.Exists(image.Path)) Swap(image.Path, temp);
-                    else System.IO.File.Move(temp, image.Path);
+                    try
+                    {
+                        System.IO.File.Copy(image.Old, temp);
+                        Place(temp, image.Path);
+                    }
+                    catch
+                    {
+                        try { if (System.IO.File.Exists(temp)) System.IO.File.Delete(temp); } catch (IOException) { }
+                        throw;
+                    }
                 }
                 else if (System.IO.File.Exists(image.Path))
                 {
@@ -228,9 +308,23 @@ public static class TagWriter
             catch (Exception ex)
             {
                 problems.Add((Path.GetFileName(image.Path), ex.Message));
+                failedImages.Add(image);
             }
         }
-        System.IO.File.Move(Path.Combine(batch.BackupFolder, Manifest), Path.Combine(batch.BackupFolder, "manifest.undone.tsv"));
+        // Undone only when all of it was: what failed stays in the manifest,
+        // so the next Undo tries it again (it was marked undone either way,
+        // and an album briefly away lost its Undo; review B7).
+        try
+        {
+            if (failedFiles.Count == 0 && failedImages.Count == 0)
+                System.IO.File.Move(Path.Combine(batch.BackupFolder, Manifest), Path.Combine(batch.BackupFolder, "manifest.undone.tsv"), overwrite: true);
+            else if (failedFiles.Count < batch.Files.Count || failedImages.Count < batch.Images.Count)
+                SaveManifest(batch.BackupFolder, failedFiles, failedImages);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            problems.Add(("backup", $"could not be marked: {ex.Message}"));
+        }
         return problems;
     }
 
@@ -242,6 +336,9 @@ public static class TagWriter
     {
         if (c.Data is not { Length: > 0 } data) throw new IOException("nothing to write");
         if (c.Op == ChangeOp.WriteImage && !ArtImage.LooksLikeAnImage(data)) throw new IOException("not an image");
+        // A link is refused (its target would be copied into the backup and
+        // could come back as a plain file on Undo), as is a pipe (review B5).
+        if (SafeFiles.WriteProblem(c.Path) is { } refused) throw new IOException(refused);
         Directory.CreateDirectory(Path.GetDirectoryName(c.Path)!);
         string? old = null;
         if (System.IO.File.Exists(c.Path))
@@ -253,8 +350,7 @@ public static class TagWriter
         try
         {
             using (var f = System.IO.File.Create(temp)) { f.Write(data); f.Flush(flushToDisk: true); }
-            if (System.IO.File.Exists(c.Path)) Swap(c.Path, temp);
-            else System.IO.File.Move(temp, c.Path);
+            Place(temp, c.Path);
         }
         catch
         {
@@ -286,13 +382,20 @@ public static class TagWriter
         return new BackupEntry(path, head, tail, FileHash(path), Convert.ToHexString(audio));
     }
 
-    /// `temp` takes `path`'s place: two renames, then the old file goes.
+    /// `temp` takes `path`'s place in one step: rename(2), which replaces
+    /// the old file atomically, on macOS and Linux; ReplaceFile on Windows.
+    /// The backup is already on disk.
     private static void Swap(string path, string temp)
     {
-        var old = path + OldSuffix;
-        System.IO.File.Move(path, old);
-        System.IO.File.Move(temp, path);
-        System.IO.File.Delete(old);
+        if (OperatingSystem.IsWindows()) System.IO.File.Replace(temp, path, destinationBackupFileName: null, ignoreMetadataErrors: true);
+        else System.IO.File.Move(temp, path, overwrite: true);
+    }
+
+    /// `temp` put at `path`: in place of the file there, or new.
+    private static void Place(string temp, string path)
+    {
+        if (System.IO.File.Exists(path)) Swap(path, temp);
+        else System.IO.File.Move(temp, path);
     }
 
     private static void CopyBytes(Stream from, Stream to, long count)

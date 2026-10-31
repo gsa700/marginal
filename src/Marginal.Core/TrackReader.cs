@@ -108,6 +108,8 @@ public static partial class TrackReader
     /// (Mp4Nesting). Every TagLib# open goes through here.
     public static TagLib.File Open(string path)
     {
+        if (!SafeFiles.HasContent(path))
+            throw new TagLib.CorruptFileException("not a plain file, or empty");
         if (FormatOf(path) == AudioFormat.M4a && !Mp4Nesting.IsSafe(path))
             throw new TagLib.CorruptFileException("boxes nested deeper than any real file");
         return TagLib.File.Create(path);

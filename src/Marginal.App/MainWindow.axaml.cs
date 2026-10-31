@@ -93,7 +93,20 @@ public sealed partial class MainWindow : Window
 
         _ = Task.Run(() =>
         {
-            var folders = Library.AlbumFolders(root).ToList();
+            try { ScanFolders(root, cancel); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                // Said, not lost with the discarded task (review A7).
+                Dispatcher.UIThread.Post(() => ScanText.Text = $"the scan stopped: {ex.Message}");
+            }
+        }, cancel.Token);
+    }
+
+    private void ScanFolders(string root, CancellationTokenSource cancel)
+    {
+        {
+            var folders = Library.AlbumFolders(root, cancel.Token).ToList();
             var done = 0;
             foreach (var folder in folders)
             {
@@ -116,7 +129,7 @@ public sealed partial class MainWindow : Window
             }
             if (folders.Count == 0)
                 Dispatcher.UIThread.Post(() => { ScanText.Text = "no music files under this folder"; Refilter(); });
-        }, cancel.Token);
+        }
     }
 
     private void OnFilterChanged(object? sender, TextChangedEventArgs e) => Refilter();
@@ -681,12 +694,11 @@ public sealed partial class MainWindow : Window
                               ?? file.Tag.Pictures.FirstOrDefault(p => ImageSize.Read(ImageSize.Repair(p.Data.Data)) is not null);
                 if (picture is null) return;
                 var bytes = ImageSize.Repair(picture.Data.Data);
+                // Decoded here, off the UI thread, and only within the limit.
+                if (Display.Decode(bytes, 1600) is not { } bitmap) return;   // not decodable: the sizes still show
                 Dispatcher.UIThread.Post(() =>
                 {
                     if (!ReferenceEquals(_track, track)) return;
-                    using var stream = new MemoryStream(bytes);
-                    Bitmap bitmap;
-                    try { bitmap = new Bitmap(stream); } catch (Exception) { return; /* not decodable: the sizes still show */ }
                     EmbeddedImage.Source = bitmap;
                     if (_album?.Cover is null) CoverImage.Source = bitmap;
                 });
@@ -695,11 +707,7 @@ public sealed partial class MainWindow : Window
         });
     }
 
-    private static Bitmap? LoadBitmap(string path)
-    {
-        try { return new Bitmap(path); }
-        catch (Exception) { return null; }
-    }
+    private static Bitmap? LoadBitmap(string path) => Display.Decode(path, 1600);
 
     private static void Pill(Border pill, TextBlock label, string text, Tone tone)
     {

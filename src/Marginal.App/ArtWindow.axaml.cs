@@ -115,19 +115,12 @@ public sealed partial class ArtWindow : Window
         {
             if (bytes is null || !ArtImage.LooksLikeAnImage(bytes)) return;
             var row = new ArtRow(new ArtCandidate("", name, Ours: true, slot, "", $"local:{where}:{name}", 0), bytes, where);
-            try
-            {
-                using var stream = new MemoryStream(bytes);
-                row.Thumbnail = Bitmap.DecodeToWidth(stream, 340);
-            }
-            catch (Exception) { row.Placeholder = "no preview"; }
+            if (Display.Decode(bytes, 340) is { } thumbnail) row.Thumbnail = thumbnail;
+            else row.Placeholder = "no preview";
             local.Add(row);
         }
-        byte[]? Read(string name)
-        {
-            try { return File.Exists(Path.Combine(_album.Folder, name)) ? File.ReadAllBytes(Path.Combine(_album.Folder, name)) : null; }
-            catch (IOException) { return null; }
-        }
+        // Plain files only, no larger than a cover may be (SafeFiles; review B2).
+        byte[]? Read(string name) => SafeFiles.Read(Path.Combine(_album.Folder, name), WebLimits.MaxImageBytes);
         if (_album.Cover is { } cover) Add(ArtSlot.Front, "in the folder", cover.Name, Read(cover.Name));
         if (_album.Back is { } back) Add(ArtSlot.Back, "in the folder", back.Name, Read(back.Name));
         if (_album.Tracks.FirstOrDefault(t => t.EmbeddedCover() is not null) is { } track)
@@ -188,8 +181,8 @@ public sealed partial class ArtWindow : Window
                 {
                     var (bytes, _) = await CoverArtArchive.ImageAsync(_http, row.Candidate.Thumbnail, _closing.Token);
                     if (bytes is null) { row.Placeholder = "no preview"; return; }
-                    using var stream = new MemoryStream(bytes);
-                    var bitmap = new Bitmap(stream);
+                    var bitmap = Display.Decode(bytes, 340);
+                    if (bitmap is null) { row.Placeholder = "no preview"; return; }
                     await Dispatcher.UIThread.InvokeAsync(() => row.Thumbnail = bitmap);
                 }
                 finally { gate.Release(); }
@@ -284,16 +277,28 @@ public sealed partial class ArtWindow : Window
     {
         try
         {
-            var info = new FileInfo(path);
-            if (info.Length > WebLimits.MaxImageBytes) { Status("that file is too large to be a cover", Tones.WarnText); return; }
-            var bytes = File.ReadAllBytes(path);
+            // Read as a plain file up to the limit: a link's own size said
+            // nothing about what it points at (review B2).
+            if (!SafeFiles.HasContent(path)) { Status("not a file that can be read", Tones.WarnText); return; }
+            var bytes = SafeFiles.Read(path, WebLimits.MaxImageBytes) ?? ReadPicked(path);
+            if (bytes is null) { Status("that file is too large to be a cover", Tones.WarnText); return; }
             if (!ArtImage.LooksLikeAnImage(bytes)) { Status("not a JPEG or PNG", Tones.WarnText); return; }
             CandidateList.SelectedItem = null;
             PickView.IsVisible = true;
             PickHint.IsVisible = false;
             Pick(bytes, $"your file: {Path.GetFileName(path)}");
         }
-        catch (IOException ex) { Status(ex.Message, Tones.BadText); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Status(ex.Message, Tones.BadText); }
+    }
+
+    /// A file picked by hand from anywhere (a link to one included), read up
+    /// to the limit; null when larger.
+    private static byte[]? ReadPicked(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        var buffer = new byte[WebLimits.MaxImageBytes + 1];
+        var n = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
+        return n > WebLimits.MaxImageBytes ? null : buffer[..n];
     }
 
     private void Pick(byte[] bytes, string from)
@@ -301,8 +306,8 @@ public sealed partial class ArtWindow : Window
         _picked = bytes;
         _pickedFrom = from;
         PreviewWait.Text = "";
-        using (var stream = new MemoryStream(bytes))
-            try { Preview.Source = new Bitmap(stream); } catch (Exception) { PreviewWait.Text = "cannot show this image"; }
+        Preview.Source = Display.Decode(bytes, 1600);
+        if (Preview.Source is null) PreviewWait.Text = "cannot show this image, or it is too large";
         var size = ImageSize.Read(bytes);
         PickInfo.Text = $"{(size is { } s ? $"{s.Width}×{s.Height}" : "unknown size")} · {(ArtImage.IsJpeg(bytes) ? "JPEG" : "PNG")} · {TrackReader.Bytes(bytes.Length)}";
         if (size is { } sz)
@@ -340,7 +345,7 @@ public sealed partial class ArtWindow : Window
         var list = new List<Change>();
         var name = Slot == ArtSlot.Front ? "cover.jpg" : "back.jpg";
         var existing = Path.Combine(_album.Folder, name);
-        var same = File.Exists(existing) && new FileInfo(existing).Length == made.Length && File.ReadAllBytes(existing).AsSpan().SequenceEqual(made);
+        var same = SafeFiles.Read(existing, WebLimits.MaxImageBytes) is { } now && now.AsSpan().SequenceEqual(made);
         if (SaveBox.IsChecked == true && !same) list.Add(Pending.SaveImage(_album, name, made));
         if (Slot == ArtSlot.Front && EmbedBox.IsChecked == true) list.AddRange(Pending.EmbedFront(_album, made));
         return list;

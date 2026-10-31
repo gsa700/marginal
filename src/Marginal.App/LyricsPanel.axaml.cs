@@ -126,11 +126,9 @@ public sealed partial class LyricsPanel : UserControl
     /// (it is where times are kept), else the tag.
     private static string Current(TrackFile track)
     {
-        try
-        {
-            if (File.Exists(track.LrcPath)) return Lrc.Tidy(File.ReadAllText(track.LrcPath));
-        }
-        catch (IOException) { }
+        // A plain file up to 1 MB: a link to /dev/zero or a pipe in its place
+        // crashed or froze the app (SafeFiles; review B2).
+        if (File.Exists(track.LrcPath) && SafeFiles.ReadText(track.LrcPath, SafeFiles.MaxLrcBytes) is { } lrc) return Lrc.Tidy(lrc);
         return Lrc.Tidy(track.Get(FieldMap.Lyrics));
     }
 

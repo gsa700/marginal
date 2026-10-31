@@ -24,13 +24,20 @@ public static class Backups
         var batches = new List<BackupBatch>();
         foreach (var dir in Directory.EnumerateDirectories(root))
         {
-            var time = DateTime.TryParseExact(Path.GetFileName(dir), "yyyyMMdd-HHmmss-fff", null,
-                System.Globalization.DateTimeStyles.None, out var t) ? t : Directory.GetCreationTime(dir);
-            var files = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
-                .Where(f => !f.EndsWith(".tsv", StringComparison.Ordinal)).ToList();
-            var bytes = files.Sum(f => new FileInfo(f).Length);
-            var undone = File.Exists(Path.Combine(dir, "manifest.undone.tsv"));
-            batches.Add(new BackupBatch(dir, time, bytes, files.Count, undone));
+            // A batch is one flat folder: nothing below it is looked into, so a
+            // link planted there cannot send this round in circles, and one
+            // unreadable batch does not hide the rest (review I1).
+            try
+            {
+                var time = DateTime.TryParseExact(Path.GetFileName(dir), "yyyyMMdd-HHmmss-fff", null,
+                    System.Globalization.DateTimeStyles.None, out var t) ? t : Directory.GetCreationTime(dir);
+                var files = Directory.EnumerateFiles(dir, "*", SearchOption.TopDirectoryOnly)
+                    .Where(f => !f.EndsWith(".tsv", StringComparison.Ordinal)).ToList();
+                var bytes = files.Sum(f => new FileInfo(f).Length);
+                var undone = File.Exists(Path.Combine(dir, "manifest.undone.tsv"));
+                batches.Add(new BackupBatch(dir, time, bytes, files.Count, undone));
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
         return batches.OrderByDescending(b => b.Time).ToList();
     }

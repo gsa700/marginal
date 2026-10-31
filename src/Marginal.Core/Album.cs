@@ -79,8 +79,15 @@ public static class AlbumReader
     /// (Control's ~/Music, 2026-10-31).
     public static bool NearlySquare(int w, int h) => Math.Abs(w - h) * 100 <= Math.Max(w, h);
 
-    public static Album Read(string folder) =>
-        Read(folder, Directory.EnumerateFiles(folder).Where(TrackReader.IsMusic).Select(TrackReader.Read));
+    /// The album in a folder. A folder that cannot be listed is an album
+    /// of no tracks, not an error (review A7).
+    public static Album Read(string folder)
+    {
+        string[] files;
+        try { files = Directory.GetFiles(folder).Where(TrackReader.IsMusic).ToArray(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { files = []; }
+        return Read(folder, files.Select(TrackReader.Read));
+    }
 
     public static Album Read(string folder, IEnumerable<TrackFile> files)
     {
@@ -157,6 +164,8 @@ public static class AlbumReader
     {
         var path = System.IO.Path.Combine(folder, name);
         if (!System.IO.File.Exists(path)) return null;
+        // A link out of the folder, a pipe or a device is no image (SafeFiles).
+        if (!SafeFiles.IsPlainFile(path)) return new FolderImage(name, null, null, 0);
         try
         {
             using var stream = System.IO.File.OpenRead(path);
@@ -166,7 +175,7 @@ public static class AlbumReader
             var size = ImageSize.Read(head);
             return new FolderImage(name, size?.Width, size?.Height, stream.Length);
         }
-        catch (IOException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             return new FolderImage(name, null, null, 0);
         }
@@ -192,7 +201,8 @@ public static class Library
     {
         try
         {
-            var full = Path.GetFullPath(path);
+            // The real path: a link to a share is on the share (review B8).
+            var full = SafeFiles.RealPath(path) ?? Path.GetFullPath(path);
             if (OperatingSystem.IsWindows() && full.StartsWith(@"\\", StringComparison.Ordinal)) return true;
             var drive = DriveInfo.GetDrives()
                 .Where(d => full.StartsWith(d.RootDirectory.FullName, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
@@ -209,13 +219,15 @@ public static class Library
     }
 
     /// Every folder under `root` (and `root` itself) that holds music files,
-    /// in path order. Folders only: albums are read one at a time after.
-    public static IEnumerable<string> AlbumFolders(string root)
+    /// in path order, as they are found. Folders only: albums are read one
+    /// at a time after. Folder links are not followed and folders that cannot
+    /// be read are passed over (SafeFiles.Folders).
+    public static IEnumerable<string> AlbumFolders(string root, CancellationToken ct = default) =>
+        SafeFiles.Folders(root, ct).Where(HasMusic);
+
+    private static bool HasMusic(string folder)
     {
-        var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.Hidden | FileAttributes.System };
-        var folders = new[] { root }.Concat(Directory.EnumerateDirectories(root, "*", options));
-        return folders
-            .Where(d => Directory.EnumerateFiles(d).Any(TrackReader.IsMusic))
-            .OrderBy(d => d, StringComparer.OrdinalIgnoreCase);
+        try { return Directory.EnumerateFiles(folder).Any(TrackReader.IsMusic); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
     }
 }

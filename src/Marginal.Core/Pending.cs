@@ -76,7 +76,10 @@ public static class Pending
     public static Change SaveImage(Album album, string name, byte[] image)
     {
         var path = System.IO.Path.Combine(album.Folder, name);
-        var now = System.IO.File.Exists(path) ? Describe(System.IO.File.ReadAllBytes(path)) : null;
+        // Read as a plain file up to the limit (SafeFiles; review B2).
+        var now = System.IO.File.Exists(path)
+            ? SafeFiles.Read(path, WebLimits.MaxImageBytes) is { } old ? Describe(old) : "(not a file Marginal can read)"
+            : null;
         return new Change(path, ChangeOp.WriteImage, now is null ? ChangeKind.Add : ChangeKind.Change, name, now, Describe(image), Data: image);
     }
 
@@ -119,7 +122,7 @@ public static class Pending
         {
             var body = Lrc.Tidy(text) + "\n";
             var path = track.LrcPath;
-            var now = System.IO.File.Exists(path) ? System.IO.File.ReadAllText(path) : null;
+            var now = System.IO.File.Exists(path) ? SafeFiles.ReadText(path, SafeFiles.MaxLrcBytes) ?? "(not a file Marginal can read)" : null;
             if (Lrc.Tidy(now) != Lrc.Tidy(body))
                 changes.Add(new Change(path, ChangeOp.WriteText, now is null ? ChangeKind.Add : ChangeKind.Change,
                     ".lrc", LyricsSummary(now), LyricsSummary(body), Data: System.Text.Encoding.UTF8.GetBytes(body)));
