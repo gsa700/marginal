@@ -34,10 +34,17 @@ public sealed partial class MainWindow : Window
         _ = Task.Run(() => Backups.Prune(Backups.Keep)).ContinueWith(_ => Dispatcher.UIThread.Post(UpdateBackups));
     }
 
-    /// `marginal <folder>`: open it straight away (spec §6).
-    public void OpenAtStart(string? folder)
+    /// `marginal <folder>`: open it straight away (spec §6), the album itself
+    /// selected when the folder is one. `from` names the app that asked
+    /// ("albumwall"), shown beside the tabs.
+    public void OpenAtStart(string? folder, string? from = null)
     {
-        if (folder is not null && Directory.Exists(folder)) Scan(folder);
+        if (string.Equals(from, "albumwall", StringComparison.OrdinalIgnoreCase))
+        {
+            FromText.Text = "opened from AlbumWall";
+            FromChip.IsVisible = true;
+        }
+        if (folder is not null && Directory.Exists(folder)) Scan(Path.GetFullPath(folder));
     }
 
     // ---- the library -------------------------------------------------------
@@ -78,9 +85,14 @@ public sealed partial class MainWindow : Window
                 Dispatcher.UIThread.Post(() =>
                 {
                     if (cancel.IsCancellationRequested) return;
-                    _albums.Add(new AlbumRow(album));
+                    var row = new AlbumRow(album);
+                    _albums.Add(row);
                     ScanText.Text = n < folders.Count ? $"reading {n} of {folders.Count}" : "";
                     Refilter();
+                    // Opened on an album (from AlbumWall, say): that album, at once.
+                    if (string.Equals(album.Folder.TrimEnd(Path.DirectorySeparatorChar), root.TrimEnd(Path.DirectorySeparatorChar), StringComparison.Ordinal)
+                        && AlbumList.SelectedItem is null)
+                        AlbumList.SelectedItem = row;
                 });
             }
             if (folders.Count == 0)

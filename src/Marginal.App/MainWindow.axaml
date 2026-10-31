@@ -117,10 +117,16 @@
         <!-- Mode tabs. -->
         <Border DockPanel.Dock="Top" Background="{DynamicResource Panel}"
                 BorderBrush="{DynamicResource Rule}" BorderThickness="0,0,0,1" Padding="16,0">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-                <Button x:Name="TagsTab" Classes="tab on" Content="Tags &amp; art" Click="OnTab"/>
-                <Button x:Name="LyricsTab" Classes="tab" Content="Lyrics" Click="OnTab"/>
-            </StackPanel>
+            <DockPanel>
+                <Border x:Name="FromChip" DockPanel.Dock="Right" IsVisible="False" VerticalAlignment="Center"
+                        Background="{DynamicResource Desk}" BorderBrush="{DynamicResource Rule}" BorderThickness="1" CornerRadius="4" Padding="8,3">
+                    <TextBlock x:Name="FromText" Classes="mono soft"/>
+                </Border>
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <Button x:Name="TagsTab" Classes="tab on" Content="Tags &amp; art" Click="OnTab"/>
+                    <Button x:Name="LyricsTab" Classes="tab" Content="Lyrics" Click="OnTab"/>
+                </StackPanel>
+            </DockPanel>
         </Border>
 
         <!-- Toolbar. -->

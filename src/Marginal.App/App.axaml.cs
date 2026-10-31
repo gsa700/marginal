@@ -21,8 +21,11 @@ public sealed class App : Application
         {
             var window = new MainWindow();
             desktop.MainWindow = window;
-            // `marginal <folder>` opens that folder (spec §6); other arguments are ignored.
-            window.OpenAtStart(desktop.Args?.FirstOrDefault(a => !a.StartsWith('-')));
+            // `marginal <folder> [--from albumwall]` opens that folder (spec §6);
+            // other arguments are ignored.
+            var args = desktop.Args ?? [];
+            var from = Array.IndexOf(args, "--from") is >= 0 and var i && i + 1 < args.Length ? args[i + 1] : null;
+            window.OpenAtStart(args.FirstOrDefault(a => !a.StartsWith('-') && a != from), from);
         }
         base.OnFrameworkInitializationCompleted();
     }

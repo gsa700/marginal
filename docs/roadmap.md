@@ -57,7 +57,11 @@ What comes next, in order. The spec is `docs/spec.md`.
    track: 22 lines timed, .lrc and tag written.* Show and edit plain and synced lyrics; LRCLIB search per track
    and for the album with the 2 s rule; `.lrc` sidecar. Then playback and Tap
    to time.
-6. **AlbumWall hook.** `marginal <folder>` on the command line; AlbumWall's
+6. **AlbumWall hook.** *Done 2026-10-31: AlbumWall's album menu has "Edit in
+   Marginal…" (or "Get Marginal…", its releases page, when not installed);
+   Marginal opens on the album, selected, "opened from AlbumWall". Tried by
+   Dave with AlbumWall on the scratch library: lyrics written in Marginal
+   showed in AlbumWall's Properties.* `marginal <folder>` on the command line; AlbumWall's
    "Edit album…" when Marginal is installed.
 7. **First release** on Edge: packaging, signing, notarizing, updater, as in
    the siblings.

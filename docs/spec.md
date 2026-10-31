@@ -204,9 +204,13 @@ lookup needs (artist, title, album, duration, IDs).
 
 Joined, not merged. Each works without the others.
 
-- **AlbumWall**: an "Edit album…" entry, shown only when Marginal is
-  installed, opens Marginal on that album's folder (`marginal <folder>`).
-  Marginal's title bar says where it was opened from. After a Write,
+- **AlbumWall**: the album menu has "Edit in Marginal…" when Marginal is
+  installed, which opens Marginal on that album's folder
+  (`marginal <folder> --from albumwall`; a multi-disc album's shared parent
+  folder), the album selected and "opened from AlbumWall" beside the tabs;
+  and "Get Marginal (tag editor)…" when it is not, which opens Marginal's
+  releases page (Dave's idea, 2026-10-31; it needs the repository public).
+  Greyed, with the reason, for an album on a server. After a Write,
   AlbumWall sees the moved modified time and re-reads the album, as it
   already does. AlbumWall keeps its own small lyrics edit for singing along.
 - **Deadwax**: Marginal reads its `.toc` / log for an exact disc ID match.
