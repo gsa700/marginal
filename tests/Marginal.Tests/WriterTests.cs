@@ -196,20 +196,25 @@ public sealed class WriterTests : IDisposable
     public void A_local_folder_is_not_a_share() => Assert.False(Library.IsOnNetworkShare(_album));
 
     [Fact]
-    public void Removes_itunes_junk_atoms_from_an_m4a()
+    public void Removes_store_junk_atoms_from_an_m4a_but_keeps_gapless_data()
     {
+        // Amazon's leftovers are junk; iTunes' gapless (iTunSMPB) and Sound
+        // Check (iTunNORM) data are not, since 0.1.2.
         var m4a = FilePath("03");
         using (var f = TagLib.File.Create(m4a))
         {
             var apple = (TagLib.Mpeg4.AppleTag)f.GetTag(TagLib.TagTypes.Apple, true);
-            apple.SetDashBox("com.apple.iTunes", "iTunNORM", " 00000310 00000313 0000176F");
+            apple.SetDashBox("com.amazon", "AmazonOrderId", "123-4567890");
+            apple.SetDashBox("com.apple.iTunes", "iTunSMPB", " 00000000 00000840 000001C0 0000000000ABCDEF");
             f.Save();
         }
         var changes = Pending.CleanJunk(Read());
-        Assert.Contains(changes, c => c.Key == "----:com.apple.iTunes:iTunNORM");
+        Assert.Contains(changes, c => c.Key == "----:com.amazon:AmazonOrderId");
+        Assert.DoesNotContain(changes, c => c.Key.Contains("iTunSMPB"));
         Write(changes);
         var after = Read().Tracks.Single(t => t.Format == AudioFormat.M4a);
-        Assert.DoesNotContain(after.Raw, r => r.Key.Contains("iTunNORM"));
+        Assert.DoesNotContain(after.Raw, r => r.Key.Contains("Amazon"));
+        Assert.Contains(after.Raw, r => r.Key.Contains("iTunSMPB"));
         Assert.Equal("Third", after.Get(FieldMap.Title));
     }
 

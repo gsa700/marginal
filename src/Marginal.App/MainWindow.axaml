@@ -159,11 +159,27 @@
                     <Border Width="1" Height="22" Background="{DynamicResource Rule}" Margin="4,0"/>
                     <Button x:Name="LookupButton" Classes="tool" Content="Look up on MusicBrainz" IsEnabled="False" Click="OnLookup"/>
                     <Button x:Name="ArtButton" Classes="tool" Content="Find art…" IsEnabled="False" Click="OnFindArt"/>
-                    <Button x:Name="CleanButton" Classes="tool" Content="Clean junk tags ▾" IsEnabled="False">
+                    <!-- Each clean-up for this album or the whole library; every
+                         change goes to Pending first, nothing is written. -->
+                    <Button x:Name="CleanButton" Classes="tool" Content="Clean up ▾" IsEnabled="False">
                         <Button.Flyout>
                             <MenuFlyout Placement="BottomEdgeAlignedLeft">
-                                <MenuItem x:Name="CleanAlbumItem" Header="This album" Click="OnCleanJunk"/>
-                                <MenuItem Header="Whole library (every change shown first)" Click="OnCleanLibrary"/>
+                                <MenuItem Header="Junk tags: ID3v1, APE, store leftovers">
+                                    <MenuItem x:Name="JunkAlbumItem" Header="This album" Tag="junk" Click="OnCleanAlbum"/>
+                                    <MenuItem Header="Whole library (every change shown first)" Tag="junk" Click="OnCleanLibrary"/>
+                                </MenuItem>
+                                <MenuItem Header="Dates written in different forms">
+                                    <MenuItem x:Name="DatesAlbumItem" Header="This album" Tag="dates" Click="OnCleanAlbum"/>
+                                    <MenuItem Header="Whole library (every change shown first)" Tag="dates" Click="OnCleanLibrary"/>
+                                </MenuItem>
+                                <MenuItem Header="Genres that are numbers (17 is Rock)">
+                                    <MenuItem x:Name="GenresAlbumItem" Header="This album" Tag="genres" Click="OnCleanAlbum"/>
+                                    <MenuItem Header="Whole library (every change shown first)" Tag="genres" Click="OnCleanLibrary"/>
+                                </MenuItem>
+                                <MenuItem Header="Purchase info: your Apple ID and name">
+                                    <MenuItem x:Name="PurchaseAlbumItem" Header="This album" Tag="purchase" Click="OnCleanAlbum"/>
+                                    <MenuItem Header="Whole library (every change shown first)" Tag="purchase" Click="OnCleanLibrary"/>
+                                </MenuItem>
                             </MenuFlyout>
                         </Button.Flyout>
                     </Button>

@@ -37,6 +37,12 @@ public sealed class Album
     public FolderImage? Cover { get; init; }
     public FolderImage? Back { get; init; }
 
+    /// Every readable track says it is part of a compilation.
+    public bool IsCompilation { get; init; }
+
+    /// Not marked, but looks like one (Tidy.LooksLikeCompilation): offered.
+    public bool LooksLikeCompilation { get; init; }
+
     public Tone Status => Checks.Count == 0 ? Tone.Clean : Checks.Max(c => c.Tone);
 
     public string Title => Field(FieldMap.Album) ?? System.IO.Path.GetFileName(Folder);
@@ -105,14 +111,19 @@ public static class AlbumReader
 
         var cover = Image(folder, "cover.jpg") ?? Image(folder, "folder.jpg");
         var back = Image(folder, "back.jpg");
+        var readable = tracks.Where(t => t.Problem is null).ToList();
+        var compilation = readable.Count > 0 && readable.All(t => t.Get(FieldMap.Compilation) == "1");
+        var looks = !compilation && Tidy.LooksLikeCompilation(readable,
+            fields.First(f => f.Field == FieldMap.Album).Common, fields.First(f => f.Field == FieldMap.AlbumArtist).Common);
         return new Album
         {
             Folder = folder, Tracks = tracks, Fields = fields, Cover = cover, Back = back,
-            Checks = Checks(tracks, fields, cover).ToList(),
+            IsCompilation = compilation, LooksLikeCompilation = looks,
+            Checks = Checks(tracks, fields, cover, compilation, looks).ToList(),
         };
     }
 
-    private static IEnumerable<Check> Checks(List<TrackFile> tracks, List<FieldSummary> fields, FolderImage? cover)
+    private static IEnumerable<Check> Checks(List<TrackFile> tracks, List<FieldSummary> fields, FolderImage? cover, bool compilation, bool looks)
     {
         foreach (var t in tracks.Where(t => t.Problem is not null))
             yield return new Check(Tone.Missing, "unreadable", t.FileName);
@@ -125,13 +136,41 @@ public static class AlbumReader
         foreach (var t in readable.Where(t => t.Get(FieldMap.AlbumArtist) is null))
             yield return new Check(Tone.Missing, "no album artist", t.FileName);
 
+        // Dates in two forms with one year are one thing to tidy, not a
+        // disagreement; on a compilation, track years and genres may differ
+        // (each song's own year), and are left as they are (Dave, 2026-10-31).
+        if (Tidy.AlbumDate(readable.Select(t => t.Get(FieldMap.Date))) is not null)
+            yield return new Check(Tone.Fixable, "dates written in different forms");
         foreach (var f in AlbumWide.Where(f => f != FieldMap.AlbumArtist))
         {
             var s = summary[f];
             if (s.Values.Count <= 1) continue;
+            if (compilation && (f == FieldMap.Date || f == FieldMap.Genre)) continue;
+            if (f == FieldMap.Date && Tidy.AlbumDate(readable.Select(t => t.Get(FieldMap.Date))) is not null) continue;
             foreach (var t in readable.Where(t => t.Get(f) is { } v && v != s.Common))
                 yield return new Check(Tone.Fixable, $"{f.Name.ToLowerInvariant()} differs", t.FileName);
         }
+        if (looks) yield return new Check(Tone.Note, "looks like a compilation");
+
+        foreach (var t in readable.Where(t => Tidy.GenreName(t.Get(FieldMap.Genre)) is not null))
+            yield return new Check(Tone.Fixable, "genre is a number", t.FileName);
+
+        // Two files with one disc and track number, and tracks missing by the
+        // totals the files themselves give.
+        var numbered = readable.Select(t => (Track: t, Disc: Math.Max(1, LeadingNumberOr0(t.Get(FieldMap.Disc))), Number: LeadingNumberOr0(t.Get(FieldMap.Track))))
+            .Where(x => x.Number > 0).ToList();
+        foreach (var g in numbered.GroupBy(x => (x.Disc, x.Number)).Where(g => g.Count() > 1))
+            foreach (var x in g) yield return new Check(Tone.Fixable, $"track {g.Key.Number} twice", x.Track.FileName);
+        foreach (var disc in numbered.GroupBy(x => x.Disc))
+        {
+            var totals = disc.Select(x => Total(x.Track.Get(FieldMap.Track))).Distinct().ToList();
+            if (totals is [> 0 and var total] && disc.Count() < total)
+                yield return new Check(Tone.Note, numbered.Select(x => x.Disc).Distinct().Count() > 1
+                    ? $"disc {disc.Key}: {disc.Count()} of {total} tracks" : $"{disc.Count()} of {total} tracks");
+        }
+
+        if (readable.Any(t => t.Raw.Any(r => TrackReader.IsPurchaseInfo(r.Key))))
+            yield return new Check(Tone.Note, "purchase info (Apple ID) in the files");
 
         foreach (var t in readable.Where(t => t.HasId3v1))
             yield return new Check(Tone.Fixable, "ID3v1 leftover", t.FileName);
@@ -180,6 +219,11 @@ public static class AlbumReader
             return new FolderImage(name, null, null, 0);
         }
     }
+
+    private static int LeadingNumberOr0(string? s) => s is null ? 0 : LeadingNumber(s);
+
+    private static int Total(string? s) =>
+        s?.Split('/', 2) is [_, var total] && int.TryParse(total, out var n) ? n : 0;
 
     private static int TrackNumber(TrackFile t) => LeadingNumber(t.Get(FieldMap.Track));
     private static int DiscNumber(TrackFile t) => LeadingNumber(t.Get(FieldMap.Disc));

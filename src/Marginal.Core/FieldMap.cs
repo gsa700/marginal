@@ -46,10 +46,14 @@ public static class FieldMap
     public static readonly Field MusicBrainzReleaseGroup = new("MusicBrainz release group", "MUSICBRAINZ_RELEASEGROUPID", "TXXX:MusicBrainz Release Group Id", Itunes + "MusicBrainz Release Group Id");
     public static readonly Field Lyrics = new("Lyrics", "LYRICS", "USLT", "©lyr");
 
+    /// "1" on every track of a compilation (Picard's mapping). On a confirmed
+    /// compilation, track years and genres that differ are expected.
+    public static readonly Field Compilation = new("Compilation", "COMPILATION", "TCMP", "cpil");
+
     public static readonly IReadOnlyList<Field> All =
     [
         Title, Artist, Album, AlbumArtist, Track, Disc, Date, OriginalDate,
-        Genre, Label, CatalogNumber, Barcode, MusicBrainzRelease, MusicBrainzReleaseGroup, Lyrics,
+        Genre, Label, CatalogNumber, Barcode, MusicBrainzRelease, MusicBrainzReleaseGroup, Lyrics, Compilation,
     ];
 
     /// The Album fields table, in its order: what describes the album. Title,
@@ -57,7 +61,7 @@ public static class FieldMap
     /// a table of twelve different titles in orange was noise (2026-10-31).
     public static readonly IReadOnlyList<Field> AlbumTable =
     [
-        Album, AlbumArtist, Artist, Date, OriginalDate, Disc,
+        Album, AlbumArtist, Artist, Date, OriginalDate, Disc, Compilation,
         Genre, Label, CatalogNumber, Barcode, MusicBrainzRelease, MusicBrainzReleaseGroup,
     ];
 

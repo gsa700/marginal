@@ -23,26 +23,41 @@ public class MacUpdateTests
         return v;
     }
 
+    /// The installed app as the updater's download would bring it, without
+    /// extended attributes: dragged from a dmg fetched by a browser, the
+    /// installed bundle carries quarantine and com.apple.FinderInfo, which
+    /// codesign --strict refuses (Control, 2026-10-31); neither is part of
+    /// the signature, and the updater's ditto-unpacked zip has neither.
+    private static string Downloaded()
+    {
+        var dir = Directory.CreateTempSubdirectory("marginal-mac-").FullName;
+        var copy = Path.Combine(dir, "Marginal.app");
+        Process.Start("/usr/bin/ditto", [Installed, copy])!.WaitForExit();
+        Process.Start("/usr/bin/xattr", ["-cr", copy])!.WaitForExit();   // ditto --noextattr kept them on Control
+        return copy;
+    }
+
     [Fact]
     public void A_notarized_newer_Marginal_passes()
     {
         if (InstalledVersion() is not { } v) return;
-        MacUpdate.Verify(Installed, "v" + v, "0.0.1");
+        MacUpdate.Verify(Downloaded(), "v" + v, "0.0.1");
     }
 
     [Fact]
     public void The_same_or_an_older_version_is_refused()
     {
         if (InstalledVersion() is not { } v) return;
-        Assert.Throws<InvalidOperationException>(() => MacUpdate.Verify(Installed, "v" + v, v));
-        Assert.Throws<InvalidOperationException>(() => MacUpdate.Verify(Installed, "v" + v, "99.0.0"));
+        var app = Downloaded();
+        Assert.Throws<InvalidOperationException>(() => MacUpdate.Verify(app, "v" + v, v));
+        Assert.Throws<InvalidOperationException>(() => MacUpdate.Verify(app, "v" + v, "99.0.0"));
     }
 
     [Fact]
     public void An_app_that_is_not_the_version_the_release_names_is_refused()
     {
         if (InstalledVersion() is null) return;
-        var e = Assert.Throws<InvalidOperationException>(() => MacUpdate.Verify(Installed, "v99.0.0", "0.0.1"));
+        var e = Assert.Throws<InvalidOperationException>(() => MacUpdate.Verify(Downloaded(), "v99.0.0", "0.0.1"));
         Assert.Contains("not 99.0.0", e.Message);
     }
 

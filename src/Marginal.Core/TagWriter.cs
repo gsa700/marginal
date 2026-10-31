@@ -537,6 +537,13 @@ public static class TagWriter
                     apple.TrackCount = uint.TryParse(total, out var tc) ? tc : 0;
                     return;
                 }
+                if (field == FieldMap.Compilation)
+                {
+                    // cpil is an integer atom, not text.
+                    if (value is null) apple.ClearData(TagLib.ByteVector.FromString("cpil", TagLib.StringType.Latin1));
+                    else apple.IsCompilation = value == "1";
+                    return;
+                }
                 const string itunes = "----:com.apple.iTunes:";
                 if (field.Mp4.StartsWith(itunes, StringComparison.Ordinal))
                 {

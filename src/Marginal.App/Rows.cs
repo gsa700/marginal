@@ -33,7 +33,20 @@ public sealed class AlbumRow(Album Album) : System.ComponentModel.INotifyPropert
 {
     public Album Album { get; } = Album;
     public string Folder => Album.Folder;
-    public string FolderName => System.IO.Path.GetFileName(Album.Folder);
+    /// The folder's name; "Disc 1" and the like with the set's folder before
+    /// it, or every disc of a split set reads the same (59 in Dave's lossy
+    /// library, 2026-10-31).
+    public string FolderName
+    {
+        get
+        {
+            var name = System.IO.Path.GetFileName(Album.Folder.TrimEnd(System.IO.Path.DirectorySeparatorChar));
+            if (!System.Text.RegularExpressions.Regex.IsMatch(name, @"^\(?(disc|disk|cd|disco)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                && !System.Text.RegularExpressions.Regex.IsMatch(name, @"\b(disc|disk|cd|disco)\s*\d+\s*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return name;
+            var parent = System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(Album.Folder.TrimEnd(System.IO.Path.DirectorySeparatorChar)));
+            return string.IsNullOrEmpty(parent) ? name : $"{parent} / {name}";
+        }
+    }
 
     /// Set when another album has the same title and artist: the folder
     /// name is then the only way to tell them apart in the list.

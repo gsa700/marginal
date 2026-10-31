@@ -72,6 +72,31 @@ public static class Pending
         return changes;
     }
 
+    /// Dates in two forms with one year, made one (Tidy.AlbumDate). Nothing
+    /// on an album whose years really differ.
+    public static IReadOnlyList<Change> TidyDates(Album album)
+    {
+        var readable = album.Tracks.Where(t => t.Problem is null).ToList();
+        if (Tidy.AlbumDate(readable.Select(t => t.Get(FieldMap.Date))) is not { } date) return [];
+        return SetField(album, FieldMap.Date, t => t.Get(FieldMap.Date) is null ? null : date)
+            .Where(c => c.To is not null).ToList();
+    }
+
+    /// Old numeric genres given their names ("17" is Rock).
+    public static IReadOnlyList<Change> NameGenres(Album album) =>
+        SetField(album, FieldMap.Genre, t => Tidy.GenreName(t.Get(FieldMap.Genre)) ?? t.Get(FieldMap.Genre));
+
+    /// The iTunes Store buyer's Apple ID and name taken out of every file
+    /// (TrackReader.IsPurchaseInfo); the rest of the purchase data stays.
+    public static IReadOnlyList<Change> RemovePurchaseInfo(Album album) =>
+        album.Tracks.Where(t => t.Problem is null)
+            .SelectMany(t => t.Raw.Where(r => TrackReader.IsPurchaseInfo(r.Key)).DistinctBy(r => r.Key)
+                .Select(r => new Change(t.Path, ChangeOp.RemoveFrame, ChangeKind.Remove, r.Key, r.Value, null)))
+            .ToList();
+
+    /// Marks every track as part of a compilation.
+    public static IReadOnlyList<Change> MarkCompilation(Album album) => SetField(album, FieldMap.Compilation, "1");
+
     /// Saves `image` beside the album's tracks as `name` (cover.jpg, back.jpg).
     public static Change SaveImage(Album album, string name, byte[] image)
     {

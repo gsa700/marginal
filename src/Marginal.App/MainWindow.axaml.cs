@@ -290,6 +290,16 @@ public sealed partial class MainWindow : Window
         if (missing > 0) AlbumChips.Children.Add(Chip($"{missing} missing", Tone.Missing));
         if (fixable > 0) AlbumChips.Children.Add(Chip($"{fixable} fixable", Tone.Fixable));
         if (missing + fixable == 0) AlbumChips.Children.Add(Chip("clean", Tone.Clean));
+        if (album.IsCompilation) AlbumChips.Children.Add(Chip("compilation", Tone.Note));
+        else if (album.LooksLikeCompilation)
+        {
+            // A guess, never acted on: one click to say so (Dave, 2026-10-31).
+            var mark = new Button { Classes = { "tool" }, Height = 22, FontSize = 11, Padding = new Thickness(8, 0), Margin = new Thickness(6, 0, 0, 0),
+                Content = "compilation? Mark it", VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center };
+            ToolTip.SetTip(mark, "Tracks from different albums or years: marking it a compilation (COMPILATION, TCMP, cpil) stops their years and genres counting as faults. Goes to Pending.");
+            mark.Click += OnMarkCompilation;
+            AlbumChips.Children.Add(mark);
+        }
 
         Lyrics.Show(album);
         ValuesHeader.Text = $"VALUE ACROSS {album.Tracks.Count} FILES";
@@ -434,7 +444,10 @@ public sealed partial class MainWindow : Window
             .Select(f => FieldRow.From(album.Fields.First(s => s.Field == f), album, pending)).ToList();
         FieldList.SelectedItem = null;
         FieldList.SelectionChanged += OnFieldSelected;
-        CleanAlbumItem.IsEnabled = Pending.CleanJunk(album).Any(c => !pending.Contains(c));
+        JunkAlbumItem.IsEnabled = Cleanup("junk", album).Any(c => !pending.Contains(c));
+        DatesAlbumItem.IsEnabled = Cleanup("dates", album).Any(c => !pending.Contains(c));
+        GenresAlbumItem.IsEnabled = Cleanup("genres", album).Any(c => !pending.Contains(c));
+        PurchaseAlbumItem.IsEnabled = Cleanup("purchase", album).Any(c => !pending.Contains(c));
     }
 
     private void OnFieldSelected(object? sender, SelectionChangedEventArgs e)
@@ -492,9 +505,35 @@ public sealed partial class MainWindow : Window
         if (changes is { Count: > 0 } && _album?.Folder == album.Folder) AddPending(changes);
     }
 
-    private void OnCleanJunk(object? sender, RoutedEventArgs e)
+    /// The changes one clean-up would make to an album, by the menu's Tag.
+    private static IReadOnlyList<Change> Cleanup(string kind, Album album) => kind switch
     {
-        if (_album is { } album) AddPending(Pending.CleanJunk(album));
+        "junk" => Pending.CleanJunk(album),
+        "dates" => Pending.TidyDates(album),
+        "genres" => Pending.NameGenres(album),
+        "purchase" => Pending.RemovePurchaseInfo(album),
+        _ => [],
+    };
+
+    private static string CleanupName(string kind) => kind switch
+    {
+        "junk" => "junk tags",
+        "dates" => "dates written in different forms",
+        "genres" => "genres that are numbers",
+        "purchase" => "purchase info",
+        _ => kind,
+    };
+
+    private void OnCleanAlbum(object? sender, RoutedEventArgs e)
+    {
+        if (_album is { } album && sender is MenuItem { Tag: string kind }) AddPending(Cleanup(kind, album));
+    }
+
+    /// The album is a compilation: every track says so (COMPILATION, TCMP,
+    /// cpil), and its tracks' own years and genres stop counting as faults.
+    private void OnMarkCompilation(object? sender, RoutedEventArgs e)
+    {
+        if (_album is { } album) AddPending(Pending.MarkCompilation(album));
     }
 
     /// Merges into this album's Pending. For a field, a value back to what the
@@ -604,20 +643,22 @@ public sealed partial class MainWindow : Window
 
     // ---- across albums --------------------------------------------------------
 
-    /// Every album's junk into its own Pending; then only those albums are
-    /// listed (the Pending chip), each to be looked at before Write all.
+    /// One clean-up for every album, each into its own Pending; then only
+    /// those albums are listed (the Pending chip), each to be looked at
+    /// before Write all.
     private void OnCleanLibrary(object? sender, RoutedEventArgs e)
     {
+        if (sender is not MenuItem { Tag: string kind }) return;
         foreach (var row in _albums)
         {
-            var changes = Pending.CleanJunk(row.Album);
+            var changes = Cleanup(kind, row.Album);
             if (changes.Count == 0) continue;
             var list = Core.Pending.Merge(_pending.GetValueOrDefault(row.Album.Folder) ?? [], changes);
             if (list.Count > 0) _pending[row.Album.Folder] = list;
         }
         if (_pending.Count == 0)
         {
-            ScanText.Text = "no junk tags in this library";
+            ScanText.Text = $"no {CleanupName(kind)} in this library";
             return;
         }
         foreach (var chip in Chips.Children.OfType<ToggleButton>()) chip.IsChecked = false;

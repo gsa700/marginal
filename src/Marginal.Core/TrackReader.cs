@@ -186,11 +186,19 @@ public static partial class TrackReader
 
     /// Store and player leftovers: not music metadata, and what "Clean junk
     /// tags" offers to remove. Kept short and certain; anything unknown stays.
+    /// NOT iTunSMPB: it is iTunes' gapless data (the encoder's priming and
+    /// padding), read by Marginal's own player and Apple's, and on 6,538 of
+    /// Dave's lossy tracks; removing it put gaps into gapless albums. Nor
+    /// iTunNORM, Apple's Sound Check loudness, which Apple devices still use
+    /// (both were junk in 0.1.0 and 0.1.1; found 2026-10-31).
     private static bool IsJunkName(string key) =>
         key.StartsWith("PRIV", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("iTunNORM", StringComparison.OrdinalIgnoreCase)
-        || key.Contains("iTunSMPB", StringComparison.OrdinalIgnoreCase)
         || key.Contains("Amazon", StringComparison.OrdinalIgnoreCase);
+
+    /// MP4 atoms that hold the buyer's identity in an iTunes Store purchase:
+    /// apID, the Apple ID's email address, and ownr, the account's name.
+    /// Offered by "Remove purchase info", apart from junk (spec §3.1).
+    public static bool IsPurchaseInfo(string key) => key is "apID" or "ownr";
 
     private static IEnumerable<RawFrame> Id3Frames(TagLib.Id3v2.Tag id3) => id3.GetFrames().Select(Id3Raw);
 
@@ -254,10 +262,19 @@ public static partial class TrackReader
                 {
                     "trkn" or "disk" => NumberPair(data.Data),
                     "covr" => CoverAtom(data),
+                    // Integer atoms (cpil, pgap, rtng, stik, tmpo): their number.
+                    _ when data.Flags == 21 && data.Data.Count is 1 or 2 or 4 or 8 => BigEndian(data.Data).ToString(System.Globalization.CultureInfo.InvariantCulture),
                     _ => data.Text ?? $"({data.Data.Count} bytes)",
                 });
             }
         }
+    }
+
+    private static long BigEndian(TagLib.ByteVector d)
+    {
+        long n = 0;
+        foreach (var b in d) n = (n << 8) | b;
+        return n;
     }
 
     /// trkn and disk: two reserved bytes, number and total as 16-bit big-endian.
