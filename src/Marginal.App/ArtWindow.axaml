@@ -5,6 +5,7 @@
         x:DataType="app:ArtWindow"
         Title="Find art"
         Width="1180" Height="820" MinWidth="900" MinHeight="580"
+        Icon="avares://Marginal/Assets/icon-256.png"
         Background="{DynamicResource Ground}"
         WindowStartupLocation="CenterOwner"
         DragDrop.AllowDrop="True">

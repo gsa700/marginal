@@ -12,6 +12,14 @@ namespace Marginal.App;
 public sealed partial class MainWindow : Window
 {
     private readonly List<AlbumRow> _albums = [];
+    private readonly Settings _settings = Settings.Load();
+    private PrefsWindow? _prefs;
+
+    /// What the last update check found, for the Preferences window.
+    internal UpdateInfo? LatestUpdate { get; set; }
+
+    /// The last update could not be put in place, or did not start.
+    internal bool LastUpdateFailed { get; private set; }
     private CancellationTokenSource? _scan;
     private Album? _album;
     private TrackFile? _track;
@@ -28,6 +36,13 @@ public sealed partial class MainWindow : Window
         Lyrics.Changes += changes => AddPending(changes);
         Lyrics.WriteAsked += () => OnWrite(this, new RoutedEventArgs());
         Closed += (_, _) => Lyrics.Shutdown();
+        Opened += async (_, _) =>
+        {
+            // Installing and uninstalling, before anything else (InstallFlow,
+            // Deadwax's): true when this run ends here.
+            if (await InstallFlow.BeforeStartAsync(this)) return;
+            _ = CheckForUpdateAsync();
+        };
         UpdateUndo();
         UpdateBackups();
         // Originals older than the keeping time go, quietly, at each start.
@@ -257,6 +272,46 @@ public sealed partial class MainWindow : Window
         FileFacts.ItemsSource = facts;
 
         ShowEmbeddedArt(track);
+    }
+
+    // ---- updates (Deadwax's, on this window) -----------------------------------
+
+    /// A few seconds after launch. Only a published copy is offered anything;
+    /// a development build is not. All this ever does is light the dot on the
+    /// gear (AlbumWall's rule): nothing is fetched until Preferences asks.
+    private async Task CheckForUpdateAsync()
+    {
+        LastUpdateFailed = UpdateService.ConsumeUpdateFailed();
+        if (LastUpdateFailed) ShowUpdateDot(true);
+        if (!UpdateService.CanUpdate || !_settings.CheckForUpdates) return;
+        await Task.Delay(TimeSpan.FromSeconds(7));
+        LatestUpdate = await UpdateService.CheckAsync(_settings.EdgeChannel);
+        ShowUpdateDot(LatestUpdate.UpdateAvailable || LastUpdateFailed);
+    }
+
+    internal void ShowUpdateDot(bool show)
+    {
+        UpdateDot.IsVisible = show;
+        _prefs?.FillUpdate();
+    }
+
+    /// Fetches the known newer release, checks it, and restarts into it.
+    /// Pending changes would be lost, so it refuses while there are any.
+    internal async Task ApplyUpdateAsync(UpdateInfo info, IProgress<double> progress)
+    {
+        if (_pending.Count > 0)
+            throw new InvalidOperationException("Write or discard the pending changes first; the update restarts Marginal.");
+        var staged = await UpdateService.DownloadAndStageAsync(info, progress);
+        UpdateService.ApplyAndRestart(staged);
+        Close();
+    }
+
+    private void OnPrefs(object? sender, RoutedEventArgs e)
+    {
+        if (_prefs is { } open) { open.Activate(); return; }
+        _prefs = new PrefsWindow(this, _settings);
+        _prefs.Closed += (_, _) => _prefs = null;
+        _prefs.Show(this);
     }
 
     // ---- the mode tabs -------------------------------------------------------

@@ -5,6 +5,7 @@
         x:DataType="app:LookupWindow"
         Title="Look up on MusicBrainz"
         Width="1180" Height="800" MinWidth="900" MinHeight="560"
+        Icon="avares://Marginal/Assets/icon-256.png"
         Background="{DynamicResource Ground}"
         WindowStartupLocation="CenterOwner">
     <!-- The lookup sheet (spec §3.3): one screen, a status line instead of

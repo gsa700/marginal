@@ -1,0 +1,47 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="using:Marginal.App"
+        x:Class="Marginal.App.PrefsWindow"
+        x:DataType="app:PrefsWindow"
+        Title="Marginal — Preferences"
+        Width="560" Height="560" MinWidth="440" MinHeight="420"
+        Icon="avares://Marginal/Assets/icon-256.png"
+        Background="{DynamicResource Ground}"
+        WindowStartupLocation="CenterOwner">
+    <!-- Updates and About, as in Deadwax's Preferences: the policy and the
+         action together; the check at launch only ever lights the dot on the
+         gear, nothing is fetched until the button here. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="24,20" Spacing="14">
+            <DockPanel>
+                <Image x:Name="AppIcon" DockPanel.Dock="Left" Width="64" Height="64" Margin="0,0,16,0"/>
+                <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Text="Marginal" FontSize="24" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="VersionText" Classes="soft"/>
+                    <TextBlock Classes="dim" FontSize="12" Text="Notes in the margins of your music library"/>
+                </StackPanel>
+            </DockPanel>
+            <TextBlock Classes="soft" TextWrapping="Wrap" LineHeight="20"
+                       Text="Tags, cover art and lyrics for FLAC, MP3 and M4A. Every change waits in Pending until Write, the audio is never touched, and every write can be undone for a year. Lookups ask MusicBrainz, the Cover Art Archive and LRCLIB only when you press a button. Free software, GPLv3."/>
+            <WrapPanel>
+                <Button Classes="tool" Content="Marginal on GitHub" Margin="0,0,8,8" Click="OnRepo"/>
+                <Button Classes="tool" Content="AlbumWall" Margin="0,0,8,8" Click="OnAlbumWall"/>
+                <Button Classes="tool" Content="Deadwax" Margin="0,0,8,8" Click="OnDeadwax"/>
+            </WrapPanel>
+
+            <Border Height="1" Background="{DynamicResource Rule}"/>
+            <TextBlock Classes="label" Text="UPDATES"/>
+            <CheckBox x:Name="AutoCheckBox" FontSize="13" Content="Look for a newer release when Marginal opens" Click="OnAutoCheck"/>
+            <TextBlock Classes="dim" FontSize="12" LineHeight="18" TextWrapping="Wrap" Margin="28,-8,0,0"
+                       Text="One small question to GitHub. If there is one, the gear gets a dot; nothing is downloaded until you ask for it here, and the download is checked against the release's published checksum before it is installed."/>
+            <CheckBox x:Name="EdgeBox" FontSize="13" Content="Edge builds: every release as it comes out" Click="OnEdge"/>
+            <TextBlock Classes="dim" FontSize="12" LineHeight="18" TextWrapping="Wrap" Margin="28,-8,0,0"
+                       Text="Off is Stable: only builds that have already run on Edge without trouble. Switching back to Stable keeps the build you have until Stable passes it."/>
+            <TextBlock x:Name="UpdateText" Classes="soft" TextWrapping="Wrap" LineHeight="20"/>
+            <Border x:Name="UpdateBar" Height="4" CornerRadius="2" IsVisible="False" Background="{DynamicResource Rule}">
+                <Border x:Name="UpdateFill" HorizontalAlignment="Left" Width="0" CornerRadius="2" Background="{DynamicResource Accent}"/>
+            </Border>
+            <Button x:Name="UpdateButton" Classes="primary" HorizontalAlignment="Left" Click="OnUpdate"/>
+        </StackPanel>
+    </ScrollViewer>
+</Window>

@@ -7,6 +7,10 @@
     <RootNamespace>Marginal.App</RootNamespace>
     <Nullable>enable</Nullable>
     <IsAotCompatible>true</IsAotCompatible>
+    <!-- WindowsShell.cs (from Deadwax): source-generated COM
+         ([GeneratedComInterface]) for the Start-menu shortcut, the kind
+         Native AOT can run, and its buffers. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- No DOTNET_STARTUP_HOOKS: it runs managed code from any assembly named
          in the environment inside this process (Deadwax security review
          2026-10-24, M1). -->
@@ -27,6 +31,18 @@
   <ItemGroup>
     <ProjectReference Include="..\Marginal.Core\Marginal.Core.csproj" />
     <ProjectReference Include="..\Marginal.Playback\Marginal.Playback.csproj" />
+  </ItemGroup>
+
+  <!-- The icon: Assets/icon.svg is the source; tools/make-icon.cs renders
+       app.ico (compiled into the exe: all Windows ever shows) and
+       app-icon.png (256 px, embedded plainly for the Linux installer, which
+       runs before Avalonia), committed. icon-256.png is the windows' own. -->
+  <PropertyGroup>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\icon-256.png" />
+    <EmbeddedResource Include="Assets\app-icon.png" LogicalName="app-icon.png" />
   </ItemGroup>
 
   <!-- TagLibSharp whole, in a trimmed or Native AOT build: it constructs the

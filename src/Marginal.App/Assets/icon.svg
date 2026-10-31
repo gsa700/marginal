@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Marginal: notes in the margins of your music library. A white page on
+       the app's blue, ruled, with the red margin line of a school exercise
+       book, and a note (a music one) written in the margin. -->
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="#0B5CBF"/>
+  <rect x="52" y="34" width="152" height="188" rx="10" fill="#FFFFFF"/>
+  <g stroke="#C9D6E8" stroke-width="5" stroke-linecap="round">
+    <line x1="112" y1="80" x2="186" y2="80"/>
+    <line x1="112" y1="108" x2="186" y2="108"/>
+    <line x1="112" y1="136" x2="186" y2="136"/>
+    <line x1="112" y1="164" x2="170" y2="164"/>
+    <line x1="112" y1="192" x2="180" y2="192"/>
+  </g>
+  <line x1="100" y1="34" x2="100" y2="222" stroke="#E5484D" stroke-width="5"/>
+  <!-- The note in the margin: an eighth note, head, stem and flag. -->
+  <g fill="#1B1F24">
+    <ellipse cx="70" cy="150" rx="11" ry="8.5" transform="rotate(-20 70 150)"/>
+    <rect x="77" y="92" width="5" height="58" rx="2"/>
+    <path d="M80 92 C 92 100, 96 110, 90 124 C 94 112, 90 104, 80 102 Z"/>
+  </g>
+</svg>

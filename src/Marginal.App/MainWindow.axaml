@@ -5,6 +5,7 @@
         x:DataType="app:MainWindow"
         Title="Marginal"
         Width="1360" Height="860" MinWidth="980" MinHeight="580"
+        Icon="avares://Marginal/Assets/icon-256.png"
         Background="{DynamicResource Ground}"
         WindowStartupLocation="CenterScreen">
     <!-- Tags & art, as in the mockups. Step 1: everything is read and shown;
@@ -141,6 +142,15 @@
                         </StackPanel>
                     </Border>
                     <Button x:Name="UndoButton" Classes="tool" Content="Undo" IsEnabled="False" Click="OnUndo"/>
+                    <!-- Preferences: Updates and About; a dot when an update waits. -->
+                    <Button x:Name="GearButton" Classes="tool" Width="36" Padding="0" HorizontalContentAlignment="Center"
+                            ToolTip.Tip="Preferences: updates and about" Click="OnPrefs">
+                        <Panel>
+                            <TextBlock Text="⚙" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Border x:Name="UpdateDot" Width="8" Height="8" CornerRadius="4" Background="{DynamicResource Accent}"
+                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-4,0" IsVisible="False"/>
+                        </Panel>
+                    </Button>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Classes="tool" Content="Open folder…" Click="OnOpenFolder"/>

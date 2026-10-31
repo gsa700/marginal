@@ -1,0 +1,38 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Marginal.App.ConfirmWindow"
+        Title="Marginal"
+        Width="460" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        RequestedThemeVariant="Light"
+        Background="{DynamicResource Ground}"
+        ShowInTaskbar="False">
+
+    <!-- AlbumWall's confirm dialog (the station tools' ConfirmWindow), in the
+         light palette of Marginal's Preferences, the other window with the
+         system's own title bar. Used where the app is about to change the
+         MACHINE rather than itself (installing, uninstalling), and before
+         removing the program. -->
+    <Window.Resources>
+        <SolidColorBrush x:Key="Ground" Color="#E4E4E2"/>
+        <SolidColorBrush x:Key="Text" Color="#1D1D20"/>
+        <SolidColorBrush x:Key="Soft" Color="#3C3C42"/>
+        <SolidColorBrush x:Key="Dim" Color="#62626A"/>
+        <SolidColorBrush x:Key="PanelFill" Color="#12000000"/>
+        <SolidColorBrush x:Key="PanelEdge" Color="#38000000"/>
+        <SolidColorBrush x:Key="PanelHover" Color="#22000000"/>
+    </Window.Resources>
+
+    <StackPanel Margin="22,20" Spacing="16">
+        <TextBlock x:Name="MessageText" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"/>
+        <!-- The consequences of the choice; collapsed unless there are some to state. -->
+        <TextBlock x:Name="DetailText" Classes="dim" FontSize="13" LineHeight="20"
+                   TextWrapping="Wrap" IsVisible="False"/>
+        <!-- One optional choice that rides along with the answer. -->
+        <CheckBox x:Name="OptionBox" FontSize="13" IsVisible="False"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="9">
+            <Button x:Name="NegativeButton" Classes="tool" Content="Cancel" MinWidth="96"/>
+            <Button x:Name="AffirmativeButton" Classes="primary" Content="Continue" MinWidth="96"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

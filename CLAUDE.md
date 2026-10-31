@@ -33,3 +33,32 @@ is backup → copy → read back → rename.
 
 Code shared with Deadwax or AlbumWall is copied, with a comment in both
 places saying so; a fix in one goes to the other.
+
+## Releases (from Deadwax's)
+
+- **Two channels.** Every build goes out on **Edge** as a GitHub pre-release:
+  `tools/release.sh X.Y.Z --edge --publish`, run on Control (the Mac build is
+  made, signed with the Developer ID and notarized there by
+  `tools/make-macos-app.sh`; Linux and Windows come from CI's Native AOT run
+  of the release commit). Copies set to Edge (Preferences) are offered it.
+- **Promotion to Stable** is the same binary with its pre-release flag
+  cleared: `tools/promote.sh X.Y.Z`. Dave's call, every time.
+- Bump `<Version>` in `Directory.Build.props` in a commit of its own first.
+  `tools/release.sh X.Y.Z` without `--publish` makes a DRAFT; `--dry-run`
+  builds and packs only.
+- Publishing is Dave's call, every time.
+- The libraries beside the program are listed in three places that must agree:
+  `InstallLayout.NativeLibraries`, `tools/release.sh` (`native_libraries`) and
+  `tools/install.sh`.
+- License texts: `tools/fetch-licenses.py` (AlbumWall's, less SQLite); the
+  components are named in `THIRD-PARTY-NOTICES.md`.
+
+## Copied code
+
+Kept identical to its source, each file saying so; a fix in one goes to the
+other: `src/Marginal.Codecs` and `src/Marginal.Playback` (AlbumWall's Hymie),
+`ImageSize.cs` (AlbumWall), `WebLimits.cs` and `AppVersion.cs` (Deadwax). Made
+from a source and then changed: `MusicBrainzClient.cs` (Deadwax's), the install
+and update code in `src/Marginal.App/Install`, `InstallFlow.cs`,
+`UpdateService.cs`, `MacUpdate.cs`, `MacInstaller.cs`, `WindowsShell.cs`,
+`PowerShell.cs` and `tools/` (Deadwax's).
