@@ -487,6 +487,13 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- While a Write, Write all or Undo runs: how far it has got (Dave, 2026-10-31). -->
+                        <StackPanel x:Name="WriteProgress" IsVisible="False" Spacing="4" Margin="2,0">
+                            <ProgressBar x:Name="WriteBar" Height="4" MinHeight="4" Minimum="0" Maximum="1"
+                                         Foreground="{DynamicResource Accent}" Background="#DCE8F7"/>
+                            <TextBlock x:Name="WriteProgressText" Classes="mono soft"/>
+                        </StackPanel>
+
                         <!-- What the last Write or Undo did, and anything it refused. -->
                         <Border x:Name="ResultBox" Classes="card" IsVisible="False" Padding="14,10">
                             <StackPanel Spacing="4">

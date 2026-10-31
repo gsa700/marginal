@@ -110,7 +110,9 @@ public static class TagWriter
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData,
             Environment.SpecialFolderOption.DoNotVerify), "marginal", "backups");
 
-    public static WriteResult Write(IReadOnlyList<Change> changes, string? backupRoot = null)
+    /// `progress` hears the number of files done (written or refused) as
+    /// each finishes, of as many as `changes` names.
+    public static WriteResult Write(IReadOnlyList<Change> changes, string? backupRoot = null, IProgress<int>? progress = null)
     {
         backupRoot ??= DefaultBackupRoot;
         var problems = new List<(string, string)>();
@@ -138,6 +140,7 @@ public static class TagWriter
                 AppendManifest(batchFolder, ImageLine(images[^1]));
             }
             catch (Exception ex) { problems.Add((Path.GetFileName(c.Path), ex.Message)); }
+            progress?.Report(n);
         }
 
         foreach (var group in changes.Where(c => c.Op is not (ChangeOp.WriteImage or ChangeOp.WriteText)).GroupBy(c => c.Path))
@@ -179,6 +182,7 @@ public static class TagWriter
                 try { if (System.IO.File.Exists(temp)) System.IO.File.Delete(temp); } catch (IOException) { }
                 problems.Add((Path.GetFileName(path), ex.Message));
             }
+            progress?.Report(n);
         }
 
         if (done.Count == 0 && images.Count == 0)
@@ -297,8 +301,9 @@ public static class TagWriter
     /// Rebuilds every original of `batch` in place: its old front and back
     /// around the file's audio as it is now, checked against the original's
     /// hash before it replaces anything.
-    public static IReadOnlyList<(string File, string Problem)> Undo(WriteBatch batch)
+    public static IReadOnlyList<(string File, string Problem)> Undo(WriteBatch batch, IProgress<int>? progress = null)
     {
+        var finished = 0;
         var problems = new List<(string, string)>();
         var failedFiles = new List<BackupEntry>();
         var failedImages = new List<ImageEntry>();
@@ -338,6 +343,7 @@ public static class TagWriter
                 problems.Add((Path.GetFileName(path), ex.Message));
                 failedFiles.Add(entry);
             }
+            progress?.Report(++finished);
         }
         foreach (var image in batch.Images)
         {
@@ -371,6 +377,7 @@ public static class TagWriter
                 problems.Add((Path.GetFileName(image.Path), ex.Message));
                 failedImages.Add(image);
             }
+            progress?.Report(++finished);
         }
         // Undone only when all of it was: what failed stays in the manifest,
         // so the next Undo tries it again (it was marked undone either way,

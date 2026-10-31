@@ -418,6 +418,25 @@ public sealed partial class MainWindow : Window
         Close();
     }
 
+    /// The bar under the Pending box while a write runs: shown at once,
+    /// moved as each file finishes (reports come back to the UI thread).
+    private IProgress<int> Progress(string doing, IReadOnlyList<Change> changes) =>
+        Progress(doing, changes.Select(c => c.Path).Distinct().Count());
+
+    private IProgress<int> Progress(string doing, int total)
+    {
+        WriteProgress.IsVisible = true;
+        WriteBar.Value = 0;
+        WriteProgressText.Text = $"{doing} 0 of {total:N0} files…";
+        return new Progress<int>(done =>
+        {
+            WriteBar.Value = total == 0 ? 1 : (double)done / total;
+            WriteProgressText.Text = $"{doing} {done:N0} of {total:N0} files…";
+        });
+    }
+
+    private void EndProgress() => WriteProgress.IsVisible = false;
+
     /// Writes running now (Write, Write all, Undo): an update waits for them.
     private int _writing;
 
@@ -602,6 +621,7 @@ public sealed partial class MainWindow : Window
         if (_album is not { } album || PendingHere is not { Count: > 0 } changes || _onShare) return;
         WriteButton.IsEnabled = false;
         WriteButton.Content = "Writing…";
+        var progress = Progress("Writing", changes);
         _writing++;
         WriteResult result;
         Album reread;
@@ -609,11 +629,11 @@ public sealed partial class MainWindow : Window
         {
             (result, reread) = await Task.Run(() =>
             {
-                var r = TagWriter.Write(changes);
+                var r = TagWriter.Write(changes, progress: progress);
                 return (r, AlbumReader.Read(album.Folder));
             });
         }
-        finally { _writing--; }
+        finally { _writing--; EndProgress(); }
 
         _pending.Remove(album.Folder);
         ReplaceAlbum(reread);
@@ -630,6 +650,7 @@ public sealed partial class MainWindow : Window
     {
         if (TagWriter.Latest() is not { } batch) return;
         UndoButton.IsEnabled = false;
+        var progress = Progress("Undoing", batch.Count);
         _writing++;
         IReadOnlyList<(string File, string Problem)> problems;
         List<Album> reread;
@@ -637,11 +658,11 @@ public sealed partial class MainWindow : Window
         {
             (problems, reread) = await Task.Run(() =>
             {
-                var p = TagWriter.Undo(batch);
+                var p = TagWriter.Undo(batch, progress);
                 return (p, batch.Folders.Where(Directory.Exists).Select(AlbumReader.Read).ToList());
             });
         }
-        finally { _writing--; }
+        finally { _writing--; EndProgress(); }
         foreach (var a in reread) ReplaceAlbum(a);
         var undid = $"Undid the write of {batch.Time:HH:mm:ss}: {batch.Count - problems.Count} of {batch.Count} files back as they were.";
         ShowResult(undid, problems.Select(p => $"{p.File}: {p.Problem}"), problems.Count == 0 ? Tone.Clean : Tone.Missing);
@@ -709,6 +730,7 @@ public sealed partial class MainWindow : Window
         WriteAllButton.IsEnabled = false;
         WriteAllButton.Content = "Writing…";
         var folders = _pending.Keys.ToList();
+        var progress = Progress("Writing", all);
         _writing++;
         WriteResult result;
         List<Album> reread;
@@ -716,11 +738,11 @@ public sealed partial class MainWindow : Window
         {
             (result, reread) = await Task.Run(() =>
             {
-                var r = TagWriter.Write(all);
+                var r = TagWriter.Write(all, progress: progress);
                 return (r, folders.Where(Directory.Exists).Select(AlbumReader.Read).ToList());
             });
         }
-        finally { _writing--; }
+        finally { _writing--; EndProgress(); }
         _pending.Clear();
         foreach (var a in reread) ReplaceAlbum(a);
         WriteAllButton.IsEnabled = true;
