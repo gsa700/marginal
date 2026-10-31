@@ -71,6 +71,12 @@
             <Setter Property="Background" Value="{DynamicResource Bar}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource Dim}"/>
         </Style>
+        <!-- Waiting, not gone: white with a pale label, not Fluent's grey block. -->
+        <Style Selector="Button.tool:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Panel}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Rule}"/>
+            <Setter Property="Foreground" Value="#9AA3AD"/>
+        </Style>
         <!-- The one blue button: Write. -->
         <Style Selector="Button.primary">
             <Setter Property="Background" Value="{DynamicResource Accent}"/>
