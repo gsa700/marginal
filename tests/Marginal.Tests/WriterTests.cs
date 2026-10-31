@@ -26,6 +26,16 @@ public sealed class WriterTests : IDisposable
     }
 
     private Album Read() => AlbumReader.Read(_album);
+
+    /// A backup's head or tail as the bytes it stands for (compressed since 0.1.2).
+    internal static byte[] Stored(string path)
+    {
+        if (!path.EndsWith(".gz")) return File.ReadAllBytes(path);
+        using var gz = new System.IO.Compression.GZipStream(File.OpenRead(path), System.IO.Compression.CompressionMode.Decompress);
+        using var m = new MemoryStream();
+        gz.CopyTo(m);
+        return m.ToArray();
+    }
     private string FilePath(string start) => Directory.GetFiles(_album).Single(f => Path.GetFileName(f).StartsWith(start));
     private static string Sha(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
 
@@ -131,7 +141,7 @@ public sealed class WriterTests : IDisposable
         var entry = Assert.Single(batch!.Files);
         Assert.Equal(original, entry.Sha256);
         // The ID3v2 tag in front and the ID3v1 tag behind: no audio at all.
-        var (start, end) = (new FileInfo(entry.Head).Length, new FileInfo(entry.Tail).Length);
+        var (start, end) = (Stored(entry.Head).Length, Stored(entry.Tail).Length);
         Assert.Equal(128, end);
         Assert.True(start + end < size / 4, $"backup {start + end} bytes of a {size}-byte file");
 

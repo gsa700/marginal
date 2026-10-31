@@ -25,6 +25,13 @@
 // checked when read: every path one Write could have produced, every backup
 // file inside its batch folder (review B6, I2).
 //
+// Pictures the write left as they were are not copied into the backup: an
+// embedded cover is a few hundred KB, and a library-wide genre fix on Dave's
+// lossy library made a 322 MB backup of covers that never changed (Dave,
+// 2026-10-31). Where each sat is kept with its hash, and Undo takes the
+// bytes back from the file as it is then; a picture changed since means that
+// file cannot be undone, as with its audio.
+//
 // Undo rebuilds: old front + the file's current audio + old back, into a
 // working copy that must hash exactly like the original did, then the same
 // swap. It refuses a file whose audio has changed since (a re-rip): there is
@@ -44,7 +51,7 @@ namespace Marginal.Core;
 
 /// What one file's backup holds: where the original's front and back bytes
 /// are kept, and the hashes Undo checks against.
-public sealed record BackupEntry(string Original, string Head, string Tail, string Sha256, string AudioSha256);
+public sealed record BackupEntry(string Original, string Head, string Tail, string Sha256, string AudioSha256, string? Pictures = null);
 
 /// An image file a write saved (cover.jpg, back.jpg): the old one's copy, if
 /// there was one, and the hash of what was written, so Undo removes a new
@@ -155,7 +162,7 @@ public static class TagWriter
                     throw new IOException(problem);
 
                 // The backup is on disk before the original is touched.
-                var entry = SaveBackup(path, batchFolder, $"{n:D3} {Path.GetFileName(path)}");
+                var entry = SaveBackup(path, batchFolder, $"{n:D3} {Path.GetFileName(path)}", PictureBytes(temp));
                 Swap(path, temp);
                 done.Add(entry);
                 SaveManifest(batchFolder, done, images);
@@ -180,7 +187,8 @@ public static class TagWriter
     {
         var temp = Path.Combine(batchFolder, Manifest + ".new");
         System.IO.File.WriteAllLines(temp,
-            files.Select(d => string.Join('\t', d.Original, Path.GetFileName(d.Head), Path.GetFileName(d.Tail), d.Sha256, d.AudioSha256))
+            files.Select(d => string.Join('\t', new[] { d.Original, Path.GetFileName(d.Head), Path.GetFileName(d.Tail), d.Sha256, d.AudioSha256 }
+                    .Concat(d.Pictures is null ? [] : [Path.GetFileName(d.Pictures)])))
                 .Concat(images.Select(i => string.Join('\t', "IMG", i.Path, i.Old is null ? "" : Path.GetFileName(i.Old), i.Sha256))));
         System.IO.File.Move(temp, Path.Combine(batchFolder, Manifest), overwrite: true);
     }
@@ -217,10 +225,12 @@ public static class TagWriter
         foreach (var line in System.IO.File.ReadAllLines(manifest))
         {
             var p = line.Split('\t');
-            if (p.Length == 5 && p[0] != "IMG"
+            if (p.Length is 5 or 6 && p[0] != "IMG"
                 && IsTarget(p[0]) && TrackReader.IsMusic(p[0])
-                && InBatch(dir, p[1]) && InBatch(dir, p[2]) && IsHash(p[3]) && IsHash(p[4]))
-                files.Add(new BackupEntry(p[0], Path.Combine(dir, p[1]), Path.Combine(dir, p[2]), p[3], p[4]));
+                && InBatch(dir, p[1]) && InBatch(dir, p[2]) && IsHash(p[3]) && IsHash(p[4])
+                && (p.Length == 5 || InBatch(dir, p[5])))
+                files.Add(new BackupEntry(p[0], Path.Combine(dir, p[1]), Path.Combine(dir, p[2]), p[3], p[4],
+                    p.Length == 6 ? Path.Combine(dir, p[5]) : null));
             else if (p.Length == 4 && p[0] == "IMG"
                      && IsTarget(p[1]) && IsSideFile(p[1])
                      && (p[2].Length == 0 || InBatch(dir, p[2])) && IsHash(p[3]))
@@ -276,16 +286,20 @@ public static class TagWriter
                 if (AudioHash(path) is not { } audio || Convert.ToHexString(audio) != entry.AudioSha256)
                     throw new IOException("its audio has changed since the write, so there is nothing to go back to");
 
+                // The pictures left out of the backup, from the file as it is now.
+                var (headBytes, tailBytes) = (ReadStored(entry.Head), ReadStored(entry.Tail));
+                if (entry.Pictures is not null)
+                    (headBytes, tailBytes) = PutPicturesBack(entry.Pictures, headBytes, tailBytes, PictureBytes(path));
                 var (start, end) = AudioRange(path);
                 using (var output = System.IO.File.Create(temp))
                 {
-                    using (var head = System.IO.File.OpenRead(entry.Head)) head.CopyTo(output);
+                    output.Write(headBytes);
                     using (var input = System.IO.File.OpenRead(path))
                     {
                         input.Position = start;
                         CopyBytes(input, output, end - start);
                     }
-                    using (var tail = System.IO.File.OpenRead(entry.Tail)) tail.CopyTo(output);
+                    output.Write(tailBytes);
                 }
                 if (FileHash(temp) != entry.Sha256) throw new IOException("the rebuilt file does not match the original");
                 Swap(path, temp);
@@ -385,20 +399,197 @@ public static class TagWriter
         Path.Combine(Path.GetDirectoryName(path)!, TempPrefix + Guid.NewGuid().ToString("N")[..8] + Path.GetExtension(path));
 
     /// Saves the bytes before and after the audio, and the hashes.
-    private static BackupEntry SaveBackup(string path, string folder, string name)
+    /// Saves the bytes before and after the audio, and the hashes. Pictures
+    /// found in those bytes exactly as they are in `kept` (the written copy's
+    /// pictures) are left out and listed in a .pics file: where, how long,
+    /// and their hash.
+    private static BackupEntry SaveBackup(string path, string folder, string name, IReadOnlyList<byte[]> kept)
     {
         var (start, end) = AudioRange(path);
         if (start < 0 || end <= start) throw new IOException("the audio could not be found for the backup");
-        var head = Path.Combine(folder, name + ".head");
-        var tail = Path.Combine(folder, name + ".tail");
+        byte[] headBytes, tailBytes;
         using (var input = System.IO.File.OpenRead(path))
         {
-            using (var h = System.IO.File.Create(head)) { CopyBytes(input, h, start); h.Flush(flushToDisk: true); }
+            headBytes = new byte[start];
+            input.ReadExactly(headBytes);
             input.Position = end;
-            using (var t = System.IO.File.Create(tail)) { input.CopyTo(t); t.Flush(flushToDisk: true); }
+            tailBytes = new byte[input.Length - end];
+            input.ReadExactly(tailBytes);
+        }
+        var cuts = new List<(string Where, long Offset, int Length, string Sha256)>();
+        headBytes = LeaveOut(headBytes, "head", kept, cuts);
+        tailBytes = LeaveOut(tailBytes, "tail", kept, cuts);
+
+        // Compressed: iTunes leaves a few hundred KB of empty "free" padding
+        // in every M4A, which was most of what was left after the pictures.
+        var head = Path.Combine(folder, name + ".head.gz");
+        var tail = Path.Combine(folder, name + ".tail.gz");
+        WriteDurably(head, Compress(headBytes));
+        WriteDurably(tail, Compress(tailBytes));
+        string? pics = null;
+        if (cuts.Count > 0)
+        {
+            pics = Path.Combine(folder, name + ".pics");
+            System.IO.File.WriteAllLines(pics, cuts.Select(c => string.Join('\t', c.Where, c.Offset.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                c.Length.ToString(System.Globalization.CultureInfo.InvariantCulture), c.Sha256)));
         }
         var audio = AudioHash(path) ?? throw new IOException("the audio could not be hashed for the backup");
-        return new BackupEntry(path, head, tail, FileHash(path), Convert.ToHexString(audio));
+        return new BackupEntry(path, head, tail, FileHash(path), Convert.ToHexString(audio), pics);
+    }
+
+    /// Rewrites backups made before 0.1.2 (whole head and tail, pictures
+    /// included, uncompressed) the new way: pictures still in the file left
+    /// out, the rest compressed. Each file is rebuilt from the new form and
+    /// compared with the old bytes before anything is replaced; one that does
+    /// not come back exactly is left as it was. Returns the bytes saved.
+    public static long Compact(string batchFolder)
+    {
+        var manifest = Path.Combine(batchFolder, Manifest);
+        if (ReadBatch(batchFolder) is not { } batch) return 0;
+        long saved = 0;
+        var entries = new List<BackupEntry>();
+        var changed = new List<string>();
+        foreach (var e in batch.Files)
+        {
+            if (e.Head.EndsWith(".gz", StringComparison.Ordinal) || e.Pictures is not null) { entries.Add(e); continue; }
+            try
+            {
+                var (head, tail) = (System.IO.File.ReadAllBytes(e.Head), System.IO.File.ReadAllBytes(e.Tail));
+                var pictures = System.IO.File.Exists(e.Original) ? PictureBytes(e.Original) : [];
+                var cuts = new List<(string Where, long Offset, int Length, string Sha256)>();
+                var newHead = LeaveOut(head, "head", pictures, cuts);
+                var newTail = LeaveOut(tail, "tail", pictures, cuts);
+                var name = Path.GetFileName(e.Head)[..^".head".Length];
+                var pics = cuts.Count > 0 ? Path.Combine(batchFolder, name + ".pics") : null;
+                var gzHead = Path.Combine(batchFolder, name + ".head.gz");
+                var gzTail = Path.Combine(batchFolder, name + ".tail.gz");
+                WriteDurably(gzHead, Compress(newHead));
+                WriteDurably(gzTail, Compress(newTail));
+                if (pics is not null)
+                    System.IO.File.WriteAllLines(pics, cuts.Select(c => string.Join('\t', c.Where, c.Offset.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        c.Length.ToString(System.Globalization.CultureInfo.InvariantCulture), c.Sha256)));
+                // Back the way Undo would bring it: exactly the old bytes, or no change.
+                var (h, t) = (ReadStored(gzHead), ReadStored(gzTail));
+                if (pics is not null) (h, t) = PutPicturesBack(pics, h, t, pictures);
+                if (!h.AsSpan().SequenceEqual(head) || !t.AsSpan().SequenceEqual(tail))
+                {
+                    foreach (var f in new[] { gzHead, gzTail, pics }) if (f is not null) System.IO.File.Delete(f);
+                    entries.Add(e);
+                    continue;
+                }
+                saved += head.Length + tail.Length - new FileInfo(gzHead).Length - new FileInfo(gzTail).Length;
+                entries.Add(e with { Head = gzHead, Tail = gzTail, Pictures = pics });
+                changed.Add(e.Head);
+                changed.Add(e.Tail);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { entries.Add(e); }
+        }
+        if (changed.Count == 0) return 0;
+        // The manifest names the new files before the old ones go.
+        SaveManifest(batchFolder, entries, batch.Images);
+        foreach (var f in changed) try { System.IO.File.Delete(f); } catch (IOException) { }
+        return saved;
+    }
+
+    /// Pictures under this size are kept in the backup as they are.
+    private const int LeaveOutFrom = 1024;
+
+    /// `bytes` with every occurrence of each kept picture cut out, each cut
+    /// recorded (offset in the original bytes, ascending).
+    private static byte[] LeaveOut(byte[] bytes, string where, IReadOnlyList<byte[]> kept, List<(string, long, int, string)> cuts)
+    {
+        var found = new List<(long Offset, int Length, string Sha)>();
+        foreach (var picture in kept.Where(p => p.Length >= LeaveOutFrom).DistinctBy(p => Convert.ToHexString(SHA256.HashData(p))))
+        {
+            var sha = Convert.ToHexString(SHA256.HashData(picture));
+            var at = 0;
+            while (at < bytes.Length && bytes.AsSpan(at).IndexOf(picture) is >= 0 and var i)
+            {
+                var offset = at + i;
+                if (!found.Any(f => offset < f.Offset + f.Length && f.Offset < offset + picture.Length))
+                    found.Add((offset, picture.Length, sha));
+                at = offset + picture.Length;
+            }
+        }
+        if (found.Count == 0) return bytes;
+        found.Sort((a, b) => a.Offset.CompareTo(b.Offset));
+        using var rest = new MemoryStream(bytes.Length);
+        long from = 0;
+        foreach (var f in found)
+        {
+            rest.Write(bytes, (int)from, (int)(f.Offset - from));
+            from = f.Offset + f.Length;
+            cuts.Add((where, f.Offset, f.Length, f.Sha));
+        }
+        rest.Write(bytes, (int)from, (int)(bytes.Length - from));
+        return rest.ToArray();
+    }
+
+    /// The head and tail with the left-out pictures back in their places,
+    /// taken from `now` (the file's pictures as they are). Throws when one is
+    /// no longer in the file.
+    private static (byte[] Head, byte[] Tail) PutPicturesBack(string pics, byte[] head, byte[] tail, IReadOnlyList<byte[]> now)
+    {
+        var byHash = now.GroupBy(p => Convert.ToHexString(SHA256.HashData(p))).ToDictionary(g => g.Key, g => g.First());
+        var cuts = System.IO.File.ReadAllLines(pics).Where(l => l.Length > 0).Select(l => l.Split('\t')).ToList();
+        if (cuts.Any(c => c.Length != 4 || c[0] is not ("head" or "tail") || !long.TryParse(c[1], out var o) || o < 0
+                          || !int.TryParse(c[2], out var n) || n < LeaveOutFrom || !IsHash(c[3])))
+            throw new IOException("the backup's picture list is damaged");
+        byte[] Insert(byte[] stored, string where)
+        {
+            using var output = new MemoryStream();
+            long from = 0;
+            foreach (var c in cuts.Where(c => c[0] == where).OrderBy(c => long.Parse(c[1])))
+            {
+                var offset = long.Parse(c[1]);
+                var take = offset - output.Length;
+                if (take < 0 || from + take > stored.Length) throw new IOException("the backup's picture list is damaged");
+                output.Write(stored, (int)from, (int)take);
+                from += take;
+                if (!byHash.TryGetValue(c[3], out var picture) || picture.Length != int.Parse(c[2]))
+                    throw new IOException("its pictures have changed since the write, so there is nothing to go back to");
+                output.Write(picture);
+            }
+            output.Write(stored, (int)from, (int)(stored.Length - from));
+            return output.ToArray();
+        }
+        return (Insert(head, "head"), Insert(tail, "tail"));
+    }
+
+    /// The pictures in a music file, as their bytes.
+    private static IReadOnlyList<byte[]> PictureBytes(string path)
+    {
+        try
+        {
+            using var file = TrackReader.Open(path);
+            return file.Tag.Pictures.Select(p => p.Data?.Data ?? []).Where(d => d.Length > 0).ToList();
+        }
+        catch (Exception) { return []; }
+    }
+
+    private static byte[] Compress(byte[] bytes)
+    {
+        using var output = new MemoryStream();
+        using (var gzip = new System.IO.Compression.GZipStream(output, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+            gzip.Write(bytes);
+        return output.ToArray();
+    }
+
+    /// A backup's head or tail: compressed (.gz, since 0.1.2) or as it was.
+    private static byte[] ReadStored(string path)
+    {
+        if (!path.EndsWith(".gz", StringComparison.Ordinal)) return System.IO.File.ReadAllBytes(path);
+        using var input = new System.IO.Compression.GZipStream(System.IO.File.OpenRead(path), System.IO.Compression.CompressionMode.Decompress);
+        using var output = new MemoryStream();
+        input.CopyTo(output);
+        return output.ToArray();
+    }
+
+    private static void WriteDurably(string path, byte[] bytes)
+    {
+        using var f = System.IO.File.Create(path);
+        f.Write(bytes);
+        f.Flush(flushToDisk: true);
     }
 
     /// `temp` takes `path`'s place in one step: rename(2), which replaces

@@ -67,6 +67,19 @@ public static class Backups
 
     public static long Size(string? root = null) => List(root).Sum(b => b.Bytes);
 
+    /// Every backup not yet undone, in the form 0.1.2 keeps (TagWriter.Compact):
+    /// done once at start; a backup already compact costs a directory read.
+    public static long CompactAll(string? root = null)
+    {
+        long saved = 0;
+        foreach (var b in List(root).Where(b => !b.Undone))
+        {
+            try { saved += TagWriter.Compact(b.Folder); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+        return saved;
+    }
+
     /// Deletes the backups of writes older than `keep`. Returns how many
     /// writes and bytes went.
     public static (int Writes, long Bytes) Prune(TimeSpan keep, string? root = null, DateTime? now = null)

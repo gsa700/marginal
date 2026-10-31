@@ -65,10 +65,27 @@ public sealed partial class MainWindow : Window
         UpdateBackups();
         // Originals older than the keeping time go, quietly, at each start.
         Backups.MoveFromInstallFolder();
-        _ = Task.Run(() => Backups.Prune(Backups.Keep)).ContinueWith(_ => Dispatcher.UIThread.Post(UpdateBackups));
+        // Then backups from before 0.1.2 made compact (verified file by file);
+        // Undo waits until that is done, so it never reads a half-made one.
+        _compacting = true;
+        _ = Task.Run(() =>
+        {
+            Backups.Prune(Backups.Keep);
+            var saved = Backups.CompactAll();
+            if (saved > 0) Console.WriteLine($"[backups] made compact: {TrackReader.Bytes(saved)} freed");
+            return saved;
+        }).ContinueWith(t => Dispatcher.UIThread.Post(() =>
+        {
+            _compacting = false;
+            UpdateBackups();
+            UpdateUndo();
+            if (t.IsCompletedSuccessfully && t.Result > 0)
+                ScanText.Text = $"backups made compact: {TrackReader.Bytes(t.Result)} freed, Undo as before";
+        }));
     }
 
     private bool _placed;
+    private bool _compacting;
     private PixelPoint? _normalPosition;
 
     /// The normal window's size and corner, not the maximized one's, so
@@ -636,7 +653,7 @@ public sealed partial class MainWindow : Window
     private void UpdateUndo()
     {
         var latest = TagWriter.Latest();
-        UndoButton.IsEnabled = latest is not null;
+        UndoButton.IsEnabled = latest is not null && !_compacting;
         ToolTip.SetTip(UndoButton, latest is null ? null
             : $"Undo the write of {latest.Time:yyyy-MM-dd HH:mm:ss}: {latest.Count} file(s) in {latest.Folders.Count} album(s)");
     }
