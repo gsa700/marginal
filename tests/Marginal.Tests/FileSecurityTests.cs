@@ -212,6 +212,17 @@ public sealed class FileSecurityTests : IDisposable
         Assert.False(File.Exists(ManifestOf(batch) + ".new"));
     }
 
+    [Fact]
+    public void A_manifest_line_cut_short_by_a_crash_is_left_out_not_the_batch()
+    {
+        var batch = WriteLabel();
+        var manifest = ManifestOf(batch);
+        File.AppendAllText(manifest, "/half/written/line\t0001 x.head.gz");   // no line end
+        var latest = TagWriter.Latest(_backups);
+        Assert.NotNull(latest);
+        Assert.Equal(3, latest!.Files.Count);
+    }
+
     [Theory]
     [InlineData("relative/01.flac")]
     [InlineData("/tmp/../etc/01.flac")]

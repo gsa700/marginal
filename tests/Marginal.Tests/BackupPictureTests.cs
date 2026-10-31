@@ -166,3 +166,26 @@ public sealed class BackupCompactTests : IDisposable
         return (head.ToArray(), tail.ToArray());
     }
 }
+
+public sealed class BackupNameTests : IDisposable
+{
+    private readonly string _root = Directory.CreateTempSubdirectory("marginal-longname-").FullName;
+    public void Dispose() { try { Directory.Delete(_root, recursive: true); } catch (IOException) { } }
+
+    [Fact]
+    public void A_track_with_a_very_long_name_is_written_and_undone()
+    {
+        // 200-odd characters, as a real title was: the backup's name has to fit 255 bytes.
+        var album = Path.Combine(_root, "Album");
+        Directory.CreateDirectory(album);
+        var fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "Fixture Band - Test Album");
+        var name = "17 - (RepeatReturn) or When the Seventh Angel Sounded His Trumpet, and There Were Loud Voices In Heaven, Which Said The Kingdom of the World Has Become the Kingdom of Our Lord and of His Christ ’ é.m4a";
+        File.Copy(Path.Combine(fixture, "03 Third.m4a"), Path.Combine(album, name));
+        var backups = Path.Combine(_root, "backups");
+        var result = TagWriter.Write(Pending.SetField(AlbumReader.Read(album), FieldMap.Label, "Vertigo"), backups);
+        Assert.Empty(result.Problems);
+        Assert.All(Directory.GetFiles(result.Batch!.BackupFolder), f => Assert.True(System.Text.Encoding.UTF8.GetByteCount(Path.GetFileName(f)) <= 255));
+        Assert.Empty(TagWriter.Undo(TagWriter.Latest(backups)!));
+        Assert.Null(TrackReader.Read(Path.Combine(album, name)).Get(FieldMap.Label));
+    }
+}

@@ -134,8 +134,8 @@ public static class TagWriter
             n++;
             try
             {
-                images.Add(WriteImage(c, batchFolder, $"{n:D3} {Path.GetFileName(c.Path)}"));
-                SaveManifest(batchFolder, done, images);
+                images.Add(WriteImage(c, batchFolder, BackupName(n, c.Path)));
+                AppendManifest(batchFolder, ImageLine(images[^1]));
             }
             catch (Exception ex) { problems.Add((Path.GetFileName(c.Path), ex.Message)); }
         }
@@ -162,10 +162,10 @@ public static class TagWriter
                     throw new IOException(problem);
 
                 // The backup is on disk before the original is touched.
-                var entry = SaveBackup(path, batchFolder, $"{n:D3} {Path.GetFileName(path)}", PictureBytes(temp));
+                var entry = SaveBackup(path, batchFolder, BackupName(n, path), PictureBytes(temp));
                 Swap(path, temp);
                 done.Add(entry);
-                SaveManifest(batchFolder, done, images);
+                AppendManifest(batchFolder, FileLine(entry));
             }
             catch (Exception ex)
             {
@@ -182,14 +182,29 @@ public static class TagWriter
         return new WriteResult(new WriteBatch(batchFolder, time, done, images), problems);
     }
 
-    /// The manifest for what is done so far, replaced whole by a rename.
+    private static string FileLine(BackupEntry d) =>
+        string.Join('\t', new[] { d.Original, Path.GetFileName(d.Head), Path.GetFileName(d.Tail), d.Sha256, d.AudioSha256 }
+            .Concat(d.Pictures is null ? [] : [Path.GetFileName(d.Pictures)]));
+
+    private static string ImageLine(ImageEntry i) =>
+        string.Join('\t', "IMG", i.Path, i.Old is null ? "" : Path.GetFileName(i.Old), i.Sha256);
+
+    /// One line more in the manifest, on disk before the next file is
+    /// touched. It was the whole manifest rewritten after every file, which
+    /// on a 4,862-file write came to gigabytes (2026-10-31). A line cut short
+    /// by a crash is ignored when read (ReadBatch).
+    private static void AppendManifest(string batchFolder, string line)
+    {
+        using var f = new FileStream(Path.Combine(batchFolder, Manifest), FileMode.Append, FileAccess.Write, FileShare.Read);
+        f.Write(System.Text.Encoding.UTF8.GetBytes(line + "\n"));
+        f.Flush(flushToDisk: true);
+    }
+
+    /// The manifest replaced whole by a rename (Undo's leftovers, Compact).
     private static void SaveManifest(string batchFolder, IEnumerable<BackupEntry> files, IEnumerable<ImageEntry> images)
     {
         var temp = Path.Combine(batchFolder, Manifest + ".new");
-        System.IO.File.WriteAllLines(temp,
-            files.Select(d => string.Join('\t', new[] { d.Original, Path.GetFileName(d.Head), Path.GetFileName(d.Tail), d.Sha256, d.AudioSha256 }
-                    .Concat(d.Pictures is null ? [] : [Path.GetFileName(d.Pictures)])))
-                .Concat(images.Select(i => string.Join('\t', "IMG", i.Path, i.Old is null ? "" : Path.GetFileName(i.Old), i.Sha256))));
+        System.IO.File.WriteAllLines(temp, files.Select(FileLine).Concat(images.Select(ImageLine)));
         System.IO.File.Move(temp, Path.Combine(batchFolder, Manifest), overwrite: true);
     }
 
@@ -222,8 +237,14 @@ public static class TagWriter
         if (!System.IO.File.Exists(manifest) || SafeFiles.IsLink(dir) || SafeFiles.IsLink(manifest)) return null;
         var files = new List<BackupEntry>();
         var images = new List<ImageEntry>();
-        foreach (var line in System.IO.File.ReadAllLines(manifest))
+        // A last line without its line end was cut short by a crash mid-write:
+        // the file it names was not swapped yet, so it is left out.
+        var text = System.IO.File.ReadAllText(manifest);
+        var lines = text.Split('\n').ToList();
+        if (!text.EndsWith('\n')) lines.RemoveAt(lines.Count - 1);
+        foreach (var raw in lines)
         {
+            var line = raw.TrimEnd('\r');
             var p = line.Split('\t');
             if (p.Length is 5 or 6 && p[0] != "IMG"
                 && IsTarget(p[0]) && TrackReader.IsMusic(p[0])
@@ -394,6 +415,20 @@ public static class TagWriter
     }
 
     // ---- backup and swap ------------------------------------------------------
+
+    /// A backup file's name: its number and the start of the track's name,
+    /// enough to recognise it. The whole name went over the 255-byte limit
+    /// for a file name with ".head.gz" added (a David Crowder Band title of
+    /// 200 characters, 2026-10-31); the manifest keeps the full path.
+    internal static string BackupName(int n, string path)
+    {
+        var name = Path.GetFileName(path);
+        var limit = 100;   // bytes, in UTF-8: a character may take four
+        var cut = name.Length;
+        while (System.Text.Encoding.UTF8.GetByteCount(name.AsSpan(0, cut)) > limit) cut--;
+        if (cut > 0 && char.IsHighSurrogate(name[cut - 1])) cut--;
+        return $"{n:D4} {name[..cut].TrimEnd()}";
+    }
 
     private static string TempBeside(string path) =>
         Path.Combine(Path.GetDirectoryName(path)!, TempPrefix + Guid.NewGuid().ToString("N")[..8] + Path.GetExtension(path));
