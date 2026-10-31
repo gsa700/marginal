@@ -13,8 +13,10 @@ What comes next, in order. The spec is `docs/spec.md`.
    checks (ID3v1 leftover, values that differ across tracks, missing album
    artist, embedded art vs cover.jpg). Read only: nothing can be written yet.
 2. **Pending and Write.** Edit fields by hand; the Pending list with
-   `+ ~ −`; the safe write (backup, copy, read back, rename); Undo. Tested on
-   copies of real albums of each format, including a network share.
+   `+ ~ −`; the safe write (backup, copy, read back, rename) with backups in
+   the central app folder; Undo. Tested on copies of real albums of each
+   format. A library on a network share opens read-only, Write off, with a
+   note saying why. Library-wide actions with their full preview.
 3. **MusicBrainz lookup.** Search from tags, link, disc ID from `.toc`/`.cue`;
    release ranking; track pairing; what-to-take checklist into Pending.
 4. **Art picker.** Cover Art Archive candidates, file/drop/paste, crop and
@@ -30,7 +32,7 @@ What comes next, in order. The spec is `docs/spec.md`.
 ## Later
 
 - Identify by sound (AcoustID + Chromaprint).
-- Library-wide clean-ups with a preview of every album touched.
+- Rename files and folders to match tags (opt-in, previewed in Pending).
 - Dark mode.
 
 ## Decided
@@ -47,3 +49,8 @@ What comes next, in order. The spec is `docs/spec.md`.
 - 2026-10-31: a back cover is kept as printed by default, not cropped square.
 - 2026-10-31: lyrics found automatically are applied only when the duration
   agrees within 2 s; the rest are held back for a person.
+- 2026-10-31, the spec's open questions (spec §9): backups in a central app
+  folder; library-wide actions with a full preview; renaming files later and
+  opt-in; booklet images in `booklet/NN.jpg`; lyric playback by copying
+  AlbumWall's decoders; network shares read-only (write to local libraries
+  only).

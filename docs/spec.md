@@ -26,9 +26,10 @@ write it safely.
 **It is not:**
 
 - a player. It plays a track only to time lyrics.
-- a library manager. It does not move, rename or delete music files, convert
+- a library manager. It does not move or delete music files, convert
   formats, or keep its own database of the library beyond what it needs to
-  list albums.
+  list albums. Renaming files to match their tags may come later, opt-in
+  (§9.3).
 - a ripper (Deadwax) or a listening app (AlbumWall). AlbumWall stays for
   listening ("if we add too much we will wreck that"); tag and art editing
   live here.
@@ -219,8 +220,8 @@ Joined, not merged. Each works without the others.
   Windows x64 — the same as Deadwax and AlbumWall.
 - **TagLib# 2.3.0** (LGPL 2.1) for reading and writing all three formats; it
   already runs under Native AOT in AlbumWall (kept whole for the trimmer).
-- Lyric timing needs playback: reuse AlbumWall's decoders (FLAC, MP3, AAC)
-  and a minimal output, or the platform's player for preview only.
+- Lyric timing needs playback: a copy of AlbumWall's decoders (FLAC, MP3,
+  AAC) and a minimal output (§9.5).
 - Images: decode, crop, resize, re-encode JPEG, strip metadata, sRGB.
   Library to be chosen (SkiaSharp is already in the Avalonia stack).
 - Updates and channels (Edge, Stable) as in Deadwax and AlbumWall.
@@ -235,17 +236,29 @@ grid, Inter for labels and JetBrains Mono for values and keys, one blue
 accent for the primary action and selection, and the status colours of §2.
 Dark mode to follow the system, with the same meanings.
 
-## 9. Open questions
+## 9. Settled questions (2026-10-31)
 
-1. **Where backups live**: a central folder in the app's data directory
-   (recommended: nothing extra in the library for Navidrome or sync jobs to
-   pick up), or a hidden folder beside each album.
-2. **Library-wide actions**: "Clean junk tags" on one album only, or across
-   the library with a preview of every album it would touch?
-3. **Renaming files to match tags**: out of scope, or a later, separate,
-   opt-in step?
-4. **Booklet** images: save where, and under what names?
-5. **Playback for lyric timing**: share AlbumWall's codecs, or preview through
-   the platform?
-6. **Network shares**: test against SMB on all three platforms early; a
-   rename on a share is not always atomic.
+1. **Backups live in a central folder** in Marginal's data directory, by
+   album path and date. Nothing extra appears in the music library for
+   Navidrome, sync jobs or other players to pick up. Undo works from there.
+2. **Library-wide actions, with a preview.** Actions work on the open album
+   by default; "Clean junk tags" and the like can also run across the
+   library, listing every album and every change in Pending before anything
+   is written. Same rules, bigger batch.
+3. **Renaming files to match tags: later, opt-in.** Not in the first
+   release. When it comes, it is a separate action using Deadwax's filing
+   patterns, shown in Pending as old name → new name before anything moves
+   (renames can break playlists and other apps' databases).
+4. **Booklet images go in a `booklet/` subfolder**: `booklet/01.jpg`,
+   `02.jpg` … in page order. Never embedded. Players that look only for
+   `cover.jpg` ignore it.
+5. **Playback for lyric timing copies AlbumWall's decoders** (Hymie's FLAC,
+   MP3 and AAC, plus a minimal output), with cross-reference comments in
+   both repositories, as the FLAC decoder is shared today. Same sound and
+   seek precision on every platform; timings line up with AlbumWall's lyric
+   display.
+6. **Local libraries only for writing.** A library on a network share opens
+   read-only: everything can be seen, checked and looked up, but Write is
+   off, with a note saying why (a rename over SMB is not always atomic, so
+   the safe write cannot be promised). Edit the local master and let the
+   usual copy carry it to the share.
