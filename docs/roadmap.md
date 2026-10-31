@@ -37,7 +37,12 @@ What comes next, in order. The spec is `docs/spec.md`.
    nothing ticked when the fit is under 90%), first-release or pressing
    year. Tried by Dave on copies.* Search from tags, link, disc ID from `.toc`/`.cue`;
    release ranking; track pairing; what-to-take checklist into Pending.
-4. **Art picker.** Cover Art Archive candidates, file/drop/paste, crop and
+4. **Art picker.** *Done 2026-10-31 but for booklet pages and paste (later):
+   Cover Art Archive candidates for the files' release and up to 8 other
+   editions, shown as they arrive (an index takes 1.5-5 s), file or drop,
+   keep / crop / pad, size, quality, metadata strip without re-encoding,
+   cover.jpg / back.jpg and embedding the front, all through Pending with
+   exact Undo.* Cover Art Archive candidates, file/drop/paste, crop and
    resize, save and embed, into Pending.
 5. **Lyrics.** Show and edit plain and synced lyrics; LRCLIB search per track
    and for the album with the 2 s rule; `.lrc` sidecar. Then playback and Tap

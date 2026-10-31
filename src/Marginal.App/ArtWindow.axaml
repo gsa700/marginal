@@ -1,0 +1,213 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="using:Marginal.App"
+        x:Class="Marginal.App.ArtWindow"
+        x:DataType="app:ArtWindow"
+        Title="Find art"
+        Width="1180" Height="820" MinWidth="900" MinHeight="580"
+        Background="{DynamicResource Ground}"
+        WindowStartupLocation="CenterOwner"
+        DragDrop.AllowDrop="True">
+    <!-- The art picker (spec §3.4). Candidates from the Cover Art Archive, or
+         a file dropped or chosen; the picked image made ready (shape, size,
+         quality, metadata) and added to Pending. Nothing is written here. -->
+    <Window.Styles>
+        <Style Selector="Border.pill">
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Padding" Value="6,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="ToggleButton.slot">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Background" Value="{DynamicResource Panel}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Edge}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="ToggleButton.slot:checked /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Text}"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+        </Style>
+        <Style Selector="ListBox">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,0,12,12"/>
+        </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="ListBoxItem > Border.cand">
+            <Setter Property="BorderBrush" Value="{DynamicResource Rule}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="ListBoxItem:selected > Border.cand">
+            <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+            <Setter Property="BorderThickness" Value="2"/>
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <!-- Header and status line. -->
+        <Border DockPanel.Dock="Top" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Rule}"
+                BorderThickness="0,0,0,1" Padding="18,12">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock x:Name="StatusDot" Classes="mono" Text="●" Foreground="{DynamicResource Dim}"/>
+                    <TextBlock x:Name="StatusText" Classes="mono soft"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="Find art" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="AlbumLine" Classes="dim" FontSize="12" VerticalAlignment="Center"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Slots and sources. -->
+        <Border DockPanel.Dock="Top" Background="{DynamicResource Bar}" BorderBrush="{DynamicResource Rule}"
+                BorderThickness="0,0,0,1" Padding="18,10">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                    <CheckBox x:Name="OtherEditions" Content="Other editions too" FontSize="12" IsChecked="True" Click="OnOtherEditions"/>
+                    <Button Classes="tool" Content="From a file…" Click="OnFromFile"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <ToggleButton x:Name="FrontSlot" Classes="slot" IsChecked="True" Click="OnSlot"/>
+                    <ToggleButton x:Name="BackSlot" Classes="slot" Click="OnSlot"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Footer. -->
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Rule}"
+                BorderThickness="0,1,0,0" Padding="18,12">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="tool" Content="Cancel" Click="OnCancel"/>
+                    <Button x:Name="AddButton" Classes="primary" Content="Add to Pending" IsEnabled="False" Click="OnAdd"/>
+                </StackPanel>
+                <TextBlock Classes="mono soft" VerticalAlignment="Center" Text="adds to Pending · the old image, if any, is kept in the backup"/>
+            </DockPanel>
+        </Border>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="440"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="400" MinWidth="320" MaxWidth="640"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Candidates. -->
+            <DockPanel Grid.Column="0" Margin="18,14,6,0">
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,12,10">
+                    <TextBlock DockPanel.Dock="Right" Classes="mono dim" Text="yours first, then other editions"/>
+                    <TextBlock x:Name="CandidatesLabel" Classes="label"/>
+                </DockPanel>
+                <TextBlock x:Name="NoneText" DockPanel.Dock="Top" Classes="dim" TextWrapping="Wrap" LineHeight="19" IsVisible="False" Margin="0,0,12,10"/>
+                <ListBox x:Name="CandidateList" SelectionChanged="OnCandidateSelected">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="app:ArtRow">
+                            <Border Classes="cand" Width="188" Background="{DynamicResource Panel}" CornerRadius="8" Padding="10">
+                                <StackPanel Spacing="5">
+                                    <Border Height="166" Background="{DynamicResource Bar}" CornerRadius="3" ClipToBounds="True">
+                                        <Panel>
+                                            <TextBlock Classes="mono dim" Text="{Binding Placeholder}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+                                        </Panel>
+                                    </Border>
+                                    <TextBlock FontSize="12" FontWeight="Medium" Text="{Binding Edition}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Classes="mono dim" Text="{Binding What}"/>
+                                    <Border Classes="pill" Background="{Binding SourceFill}" HorizontalAlignment="Left">
+                                        <TextBlock Classes="mono" Foreground="{Binding SourceInk}" Text="{Binding Source}"/>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+
+            <GridSplitter Grid.Column="1" Width="5" Background="Transparent" ResizeDirection="Columns"/>
+
+            <!-- The picked image and what to make of it. -->
+            <Border Grid.Column="2" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Rule}" BorderThickness="1,0,0,0">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="18,14" Spacing="12">
+                        <TextBlock Classes="label" Text="SELECTED"/>
+                        <TextBlock x:Name="PickHint" Classes="dim" TextWrapping="Wrap" LineHeight="19"
+                                   Text="Pick an image on the left, or drop a file anywhere on this window."/>
+                        <StackPanel x:Name="PickView" Spacing="12" IsVisible="False">
+                            <Border Background="{DynamicResource Bar}" BorderBrush="{DynamicResource Rule}" BorderThickness="1"
+                                    CornerRadius="4" ClipToBounds="True" MinHeight="120">
+                                <Panel>
+                                    <TextBlock x:Name="PreviewWait" Classes="mono dim" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <Image x:Name="Preview" Stretch="Uniform"/>
+                                </Panel>
+                            </Border>
+                            <DockPanel>
+                                <TextBlock x:Name="ShapeNote" DockPanel.Dock="Right" Classes="mono"/>
+                                <TextBlock x:Name="PickInfo" Classes="mono soft"/>
+                            </DockPanel>
+
+                            <StackPanel Spacing="5">
+                                <TextBlock Text="Shape" FontSize="12" FontWeight="Medium"/>
+                                <RadioButton x:Name="AsPrinted" GroupName="shape" IsChecked="True" FontSize="12" Click="OnOption"
+                                             Content="Keep as printed"/>
+                                <RadioButton x:Name="CropSquare" GroupName="shape" FontSize="12" Click="OnOption"
+                                             Content="Crop to square (a back loses its spines)"/>
+                                <RadioButton x:Name="PadSquare" GroupName="shape" FontSize="12" Click="OnOption"
+                                             Content="Pad to square (on white)"/>
+                            </StackPanel>
+
+                            <Grid ColumnDefinitions="*,10,*">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="Longest side" FontSize="11" Classes="soft"/>
+                                    <ComboBox x:Name="SizeBox" HorizontalAlignment="Stretch" FontSize="12" SelectedIndex="0" SelectionChanged="OnOption">
+                                        <ComboBoxItem Content="as it is"/>
+                                        <ComboBoxItem Content="1500"/>
+                                        <ComboBoxItem Content="1200"/>
+                                        <ComboBoxItem Content="1000"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="3">
+                                    <TextBlock Text="JPEG quality" FontSize="11" Classes="soft"/>
+                                    <ComboBox x:Name="QualityBox" HorizontalAlignment="Stretch" FontSize="12" SelectedIndex="0" SelectionChanged="OnOption">
+                                        <ComboBoxItem Content="keep original"/>
+                                        <ComboBoxItem Content="92"/>
+                                        <ComboBoxItem Content="85"/>
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+                            <CheckBox x:Name="StripBox" IsChecked="True" FontSize="12" Click="OnOption"
+                                      Content="Strip camera and editor metadata"/>
+
+                            <Border Height="1" Background="{DynamicResource RowRule}"/>
+
+                            <StackPanel Spacing="5">
+                                <TextBlock Text="Save as" FontSize="12" FontWeight="Medium"/>
+                                <CheckBox x:Name="SaveBox" IsChecked="True" FontSize="12" Click="OnOption"/>
+                                <CheckBox x:Name="EmbedBox" FontSize="12" Click="OnOption"/>
+                            </StackPanel>
+
+                            <Border x:Name="SummaryBox" CornerRadius="6" Padding="10,8" BorderThickness="1">
+                                <TextBlock x:Name="SummaryText" Classes="mono" TextWrapping="Wrap" LineHeight="17"/>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

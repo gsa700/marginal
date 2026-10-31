@@ -37,16 +37,31 @@ namespace Marginal.Core;
 /// are kept, and the hashes Undo checks against.
 public sealed record BackupEntry(string Original, string Head, string Tail, string Sha256, string AudioSha256);
 
+/// An image file a write saved (cover.jpg, back.jpg): the old one's copy, if
+/// there was one, and the hash of what was written, so Undo removes a new
+/// image only while it is still exactly what Marginal wrote.
+public sealed record ImageEntry(string Path, string? Old, string Sha256);
+
 /// A write: when, and each file's backup. One write can span many albums (a
 /// library-wide clean-up), and one Undo takes it all back.
-public sealed record WriteBatch(string BackupFolder, DateTime Time, IReadOnlyList<BackupEntry> Files)
+public sealed record WriteBatch(string BackupFolder, DateTime Time, IReadOnlyList<BackupEntry> Files, IReadOnlyList<ImageEntry> Images)
 {
-    public IReadOnlyList<string> Folders => Files.Select(f => Path.GetDirectoryName(f.Original)!).Distinct().ToList();
+    public IReadOnlyList<string> Folders => Files.Select(f => f.Original).Concat(Images.Select(i => i.Path))
+        .Select(AlbumFolderOf).Distinct().ToList();
+
+    public int Count => Files.Count + Images.Count;
+
+    /// The album a file belongs to: its folder, or the one above booklet/.
+    public static string AlbumFolderOf(string path)
+    {
+        var dir = Path.GetDirectoryName(path)!;
+        return Path.GetFileName(dir).Equals("booklet", StringComparison.OrdinalIgnoreCase) ? Path.GetDirectoryName(dir)! : dir;
+    }
 }
 
 public sealed record WriteResult(WriteBatch? Batch, IReadOnlyList<(string File, string Problem)> Problems)
 {
-    public int Written => Batch?.Files.Count ?? 0;
+    public int Written => Batch?.Count ?? 0;
 }
 
 public static class TagWriter
@@ -66,6 +81,7 @@ public static class TagWriter
         backupRoot ??= DefaultBackupRoot;
         var problems = new List<(string, string)>();
         var done = new List<BackupEntry>();
+        var images = new List<ImageEntry>();
         if (changes.Count == 0) return new WriteResult(null, problems);
 
         // Never on a network share (spec §9.6): those files are refused, the rest written.
@@ -79,7 +95,14 @@ public static class TagWriter
         Directory.CreateDirectory(batchFolder);
 
         var n = 0;
-        foreach (var group in changes.GroupBy(c => c.Path))
+        foreach (var c in changes.Where(c => c.Op == ChangeOp.WriteImage))
+        {
+            n++;
+            try { images.Add(WriteImage(c, batchFolder, $"{n:D3} {Path.GetFileName(c.Path)}")); }
+            catch (Exception ex) { problems.Add((Path.GetFileName(c.Path), ex.Message)); }
+        }
+
+        foreach (var group in changes.Where(c => c.Op != ChangeOp.WriteImage).GroupBy(c => c.Path))
         {
             n++;
             var path = group.Key;
@@ -111,14 +134,15 @@ public static class TagWriter
             }
         }
 
-        if (done.Count == 0)
+        if (done.Count == 0 && images.Count == 0)
         {
             try { Directory.Delete(batchFolder, recursive: true); } catch (IOException) { }
             return new WriteResult(null, problems);
         }
-        var batch = new WriteBatch(batchFolder, time, done);
+        var batch = new WriteBatch(batchFolder, time, done, images);
         System.IO.File.WriteAllLines(Path.Combine(batchFolder, Manifest),
-            done.Select(d => string.Join('\t', d.Original, Path.GetFileName(d.Head), Path.GetFileName(d.Tail), d.Sha256, d.AudioSha256)));
+            done.Select(d => string.Join('\t', d.Original, Path.GetFileName(d.Head), Path.GetFileName(d.Tail), d.Sha256, d.AudioSha256))
+                .Concat(images.Select(i => string.Join('\t', "IMG", i.Path, i.Old is null ? "" : Path.GetFileName(i.Old), i.Sha256))));
         return new WriteResult(batch, problems);
     }
 
@@ -132,13 +156,15 @@ public static class TagWriter
         {
             var manifest = Path.Combine(dir, Manifest);
             if (!System.IO.File.Exists(manifest)) continue;
-            var files = System.IO.File.ReadAllLines(manifest)
-                .Select(l => l.Split('\t')).Where(p => p.Length == 5)
+            var lines = System.IO.File.ReadAllLines(manifest).Select(l => l.Split('\t')).ToList();
+            var files = lines.Where(p => p.Length == 5 && p[0] != "IMG")
                 .Select(p => new BackupEntry(p[0], Path.Combine(dir, p[1]), Path.Combine(dir, p[2]), p[3], p[4])).ToList();
-            if (files.Count == 0) continue;
+            var images = lines.Where(p => p.Length == 4 && p[0] == "IMG")
+                .Select(p => new ImageEntry(p[1], p[2].Length == 0 ? null : Path.Combine(dir, p[2]), p[3])).ToList();
+            if (files.Count == 0 && images.Count == 0) continue;
             var time = DateTime.TryParseExact(Path.GetFileName(dir), "yyyyMMdd-HHmmss-fff", null,
                 System.Globalization.DateTimeStyles.None, out var t) ? t : Directory.GetCreationTime(dir);
-            return new WriteBatch(dir, time, files);
+            return new WriteBatch(dir, time, files, images);
         }
         return null;
     }
@@ -180,8 +206,61 @@ public static class TagWriter
                 problems.Add((Path.GetFileName(path), ex.Message));
             }
         }
+        foreach (var image in batch.Images)
+        {
+            try
+            {
+                if (image.Old is not null)
+                {
+                    if (!System.IO.File.Exists(image.Old)) throw new IOException("the backup is gone");
+                    var temp = TempBeside(image.Path);
+                    System.IO.File.Copy(image.Old, temp);
+                    if (System.IO.File.Exists(image.Path)) Swap(image.Path, temp);
+                    else System.IO.File.Move(temp, image.Path);
+                }
+                else if (System.IO.File.Exists(image.Path))
+                {
+                    // It was new: removed only while it is what Marginal wrote.
+                    if (FileHash(image.Path) != image.Sha256) throw new IOException("it has changed since the write, so it is left as it is");
+                    System.IO.File.Delete(image.Path);
+                }
+            }
+            catch (Exception ex)
+            {
+                problems.Add((Path.GetFileName(image.Path), ex.Message));
+            }
+        }
         System.IO.File.Move(Path.Combine(batch.BackupFolder, Manifest), Path.Combine(batch.BackupFolder, "manifest.undone.tsv"));
         return problems;
+    }
+
+    // ---- images beside the tracks ----------------------------------------------
+
+    /// Saves an image file: the old one copied into the backup first (an
+    /// image is small), the new one written beside it and swapped in.
+    private static ImageEntry WriteImage(Change c, string batchFolder, string name)
+    {
+        if (c.Data is not { Length: > 0 } data || !ArtImage.LooksLikeAnImage(data)) throw new IOException("not an image");
+        Directory.CreateDirectory(Path.GetDirectoryName(c.Path)!);
+        string? old = null;
+        if (System.IO.File.Exists(c.Path))
+        {
+            old = Path.Combine(batchFolder, name + ".old");
+            System.IO.File.Copy(c.Path, old);
+        }
+        var temp = TempBeside(c.Path);
+        try
+        {
+            using (var f = System.IO.File.Create(temp)) { f.Write(data); f.Flush(flushToDisk: true); }
+            if (System.IO.File.Exists(c.Path)) Swap(c.Path, temp);
+            else System.IO.File.Move(temp, c.Path);
+        }
+        catch
+        {
+            try { if (System.IO.File.Exists(temp)) System.IO.File.Delete(temp); } catch (IOException) { }
+            throw;
+        }
+        return new ImageEntry(c.Path, old, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data)));
     }
 
     // ---- backup and swap ------------------------------------------------------
@@ -248,7 +327,28 @@ public static class TagWriter
             case ChangeOp.SetField:
                 SetField(file, before.Format, c.Field!, c.To);
                 return;
+            case ChangeOp.EmbedFront:
+                EmbedFront(file, c.Data!);
+                return;
         }
+    }
+
+    /// The new front in place of the file's cover (the picture typed front,
+    /// else the first that is an image: TrackFile.EmbeddedCover's rule); any
+    /// other pictures (a back, a booklet page) stay as they were.
+    private static void EmbedFront(TagLib.File file, byte[] image)
+    {
+        var pictures = file.Tag.Pictures.ToList();
+        var cover = pictures.FindIndex(p => p.Type == TagLib.PictureType.FrontCover && ImageSize.Read(ImageSize.Repair(p.Data.Data)) is not null);
+        if (cover < 0) cover = pictures.FindIndex(p => ImageSize.Read(ImageSize.Repair(p.Data.Data)) is not null);
+        if (cover >= 0) pictures.RemoveAt(cover);
+        pictures.Insert(0, new TagLib.Picture(new TagLib.ByteVector(image))
+        {
+            Type = TagLib.PictureType.FrontCover,
+            MimeType = ArtImage.IsJpeg(image) ? "image/jpeg" : "image/png",
+            Description = "",
+        });
+        file.Tag.Pictures = pictures.ToArray();
     }
 
     private static void SetField(TagLib.File file, AudioFormat format, Field field, string? value)
@@ -382,7 +482,16 @@ public static class TagWriter
             return lost is not null ? $"another frame changed: {lost}" : $"a frame appeared: {gained}";
         }
 
-        if (before.Pictures.Count != after.Pictures.Count
+        var embed = changes.FirstOrDefault(c => c.Op == ChangeOp.EmbedFront);
+        if (embed is not null)
+        {
+            // The new front is there, whole; every other picture is as it was.
+            if (after.EmbeddedCover() is not { } front || front.Bytes != embed.Data!.Length) return "the new front cover did not go in";
+            var keptBefore = before.Pictures.Where(p => p != before.EmbeddedCover()).Select(p => p.Bytes).Order().ToList();
+            var keptAfter = after.Pictures.Where(p => p != front).Select(p => p.Bytes).Order().ToList();
+            if (!keptBefore.SequenceEqual(keptAfter)) return "another embedded picture changed";
+        }
+        else if (before.Pictures.Count != after.Pictures.Count
             || before.Pictures.Zip(after.Pictures).Any(p => p.First.Bytes != p.Second.Bytes))
             return "the embedded pictures changed";
 
@@ -402,6 +511,7 @@ public static class TagWriter
         if (c.Field == FieldMap.OriginalDate) { yield return "TORY"; yield return "TDOR"; }
         if (c.Field == FieldMap.Disc) { yield return "DISCNUMBER"; yield return "DISCTOTAL"; yield return "TOTALDISCS"; yield return "disk"; }
         if (c.Field == FieldMap.Track) { yield return "TRACKNUMBER"; yield return "TRACKTOTAL"; yield return "TOTALTRACKS"; yield return "trkn"; }
+        if (c.Op == ChangeOp.EmbedFront) { yield return "APIC"; yield return "covr"; }
     }
 
     /// SHA-256 of the audio: the bytes no tag covers. FLAC: everything after

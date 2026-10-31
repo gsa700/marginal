@@ -124,7 +124,7 @@
                                MaxWidth="320" TextTrimming="PrefixCharacterEllipsis"/>
                     <Border Width="1" Height="22" Background="{DynamicResource Rule}" Margin="4,0"/>
                     <Button x:Name="LookupButton" Classes="tool" Content="Look up on MusicBrainz" IsEnabled="False" Click="OnLookup"/>
-                    <Button Classes="tool" Content="Find art…" IsEnabled="False"/>
+                    <Button x:Name="ArtButton" Classes="tool" Content="Find art…" IsEnabled="False" Click="OnFindArt"/>
                     <Button x:Name="CleanButton" Classes="tool" Content="Clean junk tags ▾" IsEnabled="False">
                         <Button.Flyout>
                             <MenuFlyout Placement="BottomEdgeAlignedLeft">

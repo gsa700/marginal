@@ -13,6 +13,8 @@
        under Native AOT (spec §7). -->
   <ItemGroup>
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
+    <!-- The version Avalonia ships, so the app carries one copy (as Deadwax). -->
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
   </ItemGroup>
 
 </Project>

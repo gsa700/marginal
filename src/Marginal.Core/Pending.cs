@@ -11,8 +11,10 @@ public enum ChangeKind { Add, Change, Remove }
 
 /// What a change does. SetField writes `To` into `Field` (null `To` removes
 /// the field); RemoveTag drops a whole leftover tag (ID3v1, APE); RemoveFrame
-/// drops one raw frame by its key.
-public enum ChangeOp { SetField, RemoveTag, RemoveFrame }
+/// drops one raw frame by its key; WriteImage saves `Data` as an image file
+/// beside the tracks (cover.jpg, back.jpg); EmbedFront puts `Data` in a file
+/// as its front cover, in place of the one it has.
+public enum ChangeOp { SetField, RemoveTag, RemoveFrame, WriteImage, EmbedFront }
 
 public sealed record Change(
     string Path,
@@ -21,7 +23,8 @@ public sealed record Change(
     string Key,
     string? From,
     string? To,
-    Field? Field = null)
+    Field? Field = null,
+    byte[]? Data = null)
 {
     public string FileName => System.IO.Path.GetFileName(Path);
 }
@@ -68,6 +71,32 @@ public static class Pending
         }
         return changes;
     }
+
+    /// Saves `image` beside the album's tracks as `name` (cover.jpg, back.jpg).
+    public static Change SaveImage(Album album, string name, byte[] image)
+    {
+        var path = System.IO.Path.Combine(album.Folder, name);
+        var now = System.IO.File.Exists(path) ? Describe(System.IO.File.ReadAllBytes(path)) : null;
+        return new Change(path, ChangeOp.WriteImage, now is null ? ChangeKind.Add : ChangeKind.Change, name, now, Describe(image), Data: image);
+    }
+
+    /// Embeds `image` as the front cover of every track, in place of the one
+    /// each has (or as the first, when it has none).
+    public static IReadOnlyList<Change> EmbedFront(Album album, byte[] image)
+    {
+        var to = Describe(image);
+        return album.Tracks.Where(t => t.Problem is null).Select(t =>
+        {
+            var cover = t.EmbeddedCover();
+            var key = t.Format switch { AudioFormat.Flac => "PICTURE", AudioFormat.Mp3 => "APIC", _ => "covr" };
+            var from = cover is null ? null : $"{cover.Size} · {TrackReader.Bytes(cover.Bytes)}";
+            return new Change(t.Path, ChangeOp.EmbedFront, cover is null ? ChangeKind.Add : ChangeKind.Change, key, from, to, Data: image);
+        }).ToList();
+    }
+
+    /// "1200×1200 · 312 KB".
+    public static string Describe(byte[] image) =>
+        (ImageSize.Read(image) is { } s ? $"{s.Width}×{s.Height}" : "unknown size") + $" · {TrackReader.Bytes(image.LongLength)}";
 
     /// Adds `changes` to `list`, replacing any earlier change to the same file
     /// and key: the last edit of a field is the one that counts. A change back

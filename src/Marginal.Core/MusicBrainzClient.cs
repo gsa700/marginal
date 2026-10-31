@@ -51,6 +51,15 @@ public sealed class MusicBrainzClient : IDisposable
         return body is null ? null : JsonDocument.Parse(body);
     }
 
+    /// Every edition in a release group, each with the archive's
+    /// `cover-art-archive: {front, back, count}` inline (Deadwax's browse).
+    public async Task<JsonDocument?> BrowseReleasesAsync(string releaseGroupId, CancellationToken ct = default)
+    {
+        if (!WebLimits.IsMbid(releaseGroupId)) throw new MusicBrainzException($"\"{releaseGroupId}\" is not a MusicBrainz release-group ID.");
+        var body = await GetAsync($"release?release-group={releaseGroupId}&inc=media&limit=100&fmt=json", ct);
+        return body is null ? null : JsonDocument.Parse(body);
+    }
+
     private async Task<byte[]?> GetAsync(string path, CancellationToken ct)
     {
         for (var attempt = 1; ; attempt++)

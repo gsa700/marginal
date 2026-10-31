@@ -153,6 +153,7 @@ public sealed partial class MainWindow : Window
         ArtHint.IsVisible = album is null;
         ArtGrid.IsVisible = album is not null;
         LookupButton.IsEnabled = album is not null;
+        ArtButton.IsEnabled = album is not null;
         if (album is null)
         {
             ShowTrack(null);
@@ -183,6 +184,7 @@ public sealed partial class MainWindow : Window
         ValuesHeader.Text = $"VALUE ACROSS {album.Tracks.Count} FILES";
         _onShare = Library.IsOnNetworkShare(album.Folder);
         LookupButton.IsEnabled = true;
+        ArtButton.IsEnabled = true;
         EditBar.IsVisible = false;
         ResultBox.IsVisible = false;
         ShowFields();
@@ -297,6 +299,16 @@ public sealed partial class MainWindow : Window
         if (changes is { Count: > 0 } && _album?.Folder == album.Folder) AddPending(changes);
     }
 
+    /// The art picker; the image it makes joins this album's Pending. It opens
+    /// on the back when the album has a cover but no back.
+    private async void OnFindArt(object? sender, RoutedEventArgs e)
+    {
+        if (_album is not { } album) return;
+        var slot = album.Cover is not null && album.Back is null ? ArtSlot.Back : ArtSlot.Front;
+        var changes = await new ArtWindow(album, slot).ShowDialog<List<Change>?>(this);
+        if (changes is { Count: > 0 } && _album?.Folder == album.Folder) AddPending(changes);
+    }
+
     private void OnCleanJunk(object? sender, RoutedEventArgs e)
     {
         if (_album is { } album) AddPending(Pending.CleanJunk(album));
@@ -377,7 +389,7 @@ public sealed partial class MainWindow : Window
             return (p, batch.Folders.Where(Directory.Exists).Select(AlbumReader.Read).ToList());
         });
         foreach (var a in reread) ReplaceAlbum(a);
-        var undid = $"Undid the write of {batch.Time:HH:mm:ss}: {batch.Files.Count - problems.Count} of {batch.Files.Count} files back as they were.";
+        var undid = $"Undid the write of {batch.Time:HH:mm:ss}: {batch.Count - problems.Count} of {batch.Count} files back as they were.";
         ShowResult(undid, problems.Select(p => $"{p.File}: {p.Problem}"), problems.Count == 0 ? Tone.Clean : Tone.Missing);
         ScanText.Text = undid;
         UpdateUndo();
@@ -389,7 +401,7 @@ public sealed partial class MainWindow : Window
         var latest = TagWriter.Latest();
         UndoButton.IsEnabled = latest is not null;
         ToolTip.SetTip(UndoButton, latest is null ? null
-            : $"Undo the write of {latest.Time:yyyy-MM-dd HH:mm:ss}: {latest.Files.Count} file(s) in {latest.Folders.Count} album(s)");
+            : $"Undo the write of {latest.Time:yyyy-MM-dd HH:mm:ss}: {latest.Count} file(s) in {latest.Folders.Count} album(s)");
     }
 
     // ---- across albums --------------------------------------------------------
