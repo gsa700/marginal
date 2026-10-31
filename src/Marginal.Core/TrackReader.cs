@@ -92,7 +92,10 @@ public static partial class TrackReader
     };
 
     /// Lines that start with an LRC time code: "[01:12.40]".
-    [GeneratedRegex(@"^\s*\[\d{1,3}:\d{2}([.:]\d{1,3})?\]", RegexOptions.Multiline)]
+    // [ \t]*, not \s*: \s also matches the line ends, and on a lyric of blank
+    // lines that made every match attempt run on to the end (quadratic: 10 s
+    // for a 600 KB tag; security review 2026-10-31, A4).
+    [GeneratedRegex(@"^[ \t]*\[\d{1,3}:\d{2}([.:]\d{1,3})?\]", RegexOptions.Multiline)]
     private static partial Regex LrcLine();
 
     public static LyricsKind KindOf(string? lyrics) =>
@@ -100,12 +103,22 @@ public static partial class TrackReader
         : LrcLine().IsMatch(lyrics) ? LyricsKind.Synced
         : LyricsKind.Plain;
 
+    /// TagLib#'s reader for a file, after the checks that keep a crafted file
+    /// from taking the app down: an MP4 nested too deep is refused
+    /// (Mp4Nesting). Every TagLib# open goes through here.
+    public static TagLib.File Open(string path)
+    {
+        if (FormatOf(path) == AudioFormat.M4a && !Mp4Nesting.IsSafe(path))
+            throw new TagLib.CorruptFileException("boxes nested deeper than any real file");
+        return TagLib.File.Create(path);
+    }
+
     public static TrackFile Read(string path)
     {
         var format = FormatOf(path) ?? AudioFormat.Mp3;
         try
         {
-            using var file = TagLib.File.Create(path);
+            using var file = Open(path);
             var raw = new List<RawFrame>();
             var versions = new List<string>();
 

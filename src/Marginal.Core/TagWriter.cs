@@ -113,7 +113,7 @@ public static class TagWriter
                 if (before.Problem is not null) throw new IOException(before.Problem);
 
                 System.IO.File.Copy(path, temp);
-                using (var file = TagLib.File.Create(temp))
+                using (var file = TrackReader.Open(temp))
                 {
                     foreach (var c in group) Apply(file, before, c);
                     file.Save();
@@ -626,7 +626,7 @@ public static class TagWriter
             }
             default:
             {
-                using var file = TagLib.File.Create(path);
+                using var file = TrackReader.Open(path);
                 return (file.InvariantStartPosition, file.InvariantEndPosition);
             }
         }

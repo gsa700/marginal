@@ -52,6 +52,10 @@ public sealed partial class MainWindow : Window
     /// `marginal <folder>`: open it straight away (spec §6), the album itself
     /// selected when the folder is one. `from` names the app that asked
     /// ("albumwall"), shown beside the tabs.
+    /// Something went wrong that nothing else caught (App's last line of
+    /// defence): said on the status line; Pending is kept.
+    public void ShowError(string message) => ScanText.Text = $"something went wrong: {message}";
+
     public void OpenAtStart(string? folder, string? from = null)
     {
         if (string.Equals(from, "albumwall", StringComparison.OrdinalIgnoreCase))
@@ -672,7 +676,7 @@ public sealed partial class MainWindow : Window
         {
             try
             {
-                using var file = TagLib.File.Create(path);
+                using var file = TrackReader.Open(path);
                 var picture = file.Tag.Pictures.FirstOrDefault(p => p.Type == TagLib.PictureType.FrontCover && ImageSize.Read(p.Data.Data) is not null)
                               ?? file.Tag.Pictures.FirstOrDefault(p => ImageSize.Read(ImageSize.Repair(p.Data.Data)) is not null);
                 if (picture is null) return;

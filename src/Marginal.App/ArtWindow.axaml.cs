@@ -88,7 +88,7 @@ public sealed partial class ArtWindow : Window
                 error is not null ? Tones.WarnText : Tones.OkText);
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) when (ex is MusicBrainzException or HttpRequestException)
+        catch (Exception ex)
         {
             Busy(null);
             Status(ex.Message, Tones.BadText);
@@ -140,7 +140,7 @@ public sealed partial class ArtWindow : Window
     {
         try
         {
-            using var file = TagLib.File.Create(path);
+            using var file = TrackReader.Open(path);
             var picture = file.Tag.Pictures.FirstOrDefault(p => p.Type == TagLib.PictureType.FrontCover && ImageSize.Read(ImageSize.Repair(p.Data.Data)) is not null)
                           ?? file.Tag.Pictures.FirstOrDefault(p => ImageSize.Read(ImageSize.Repair(p.Data.Data)) is not null);
             return picture is null ? null : ImageSize.Repair(picture.Data.Data);

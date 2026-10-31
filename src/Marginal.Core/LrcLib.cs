@@ -28,7 +28,8 @@ public sealed record LrcLibResult(long Id, string Track, string Artist, string A
 /// title agree, and whether it may be used without asking.
 public sealed record LyricsFit(LrcLibResult Result, int Seconds, bool Names, bool Automatic)
 {
-    public string Text => (Seconds == 0 ? "length ±0 s" : $"length {Seconds:+0;−0} s") + (Names ? "" : " · other title or artist");
+    public string Text => (Result.Duration <= 0 ? "length unknown" : Seconds == 0 ? "length ±0 s" : $"length {Seconds:+0;−0} s")
+                          + (Names ? "" : " · other title or artist");
 }
 
 public sealed class LrcLibClient : IDisposable
@@ -43,6 +44,9 @@ public sealed class LrcLibClient : IDisposable
         _http = handler is null ? new HttpClient() : new HttpClient(handler);
         _http.BaseAddress = new Uri("https://lrclib.net/api/");
         _http.Timeout = TimeSpan.FromSeconds(20);
+        // An answer is buffered whole before it is read; no bigger than this
+        // (an endless one grew to 2.7 GB; security review 2026-10-31, A8).
+        _http.MaxResponseContentBufferSize = Json.MaxAnswerBytes;
         _http.DefaultRequestHeaders.UserAgent.ParseAdd($"Marginal/{AppVersion.Current} ( https://github.com/gsa700/marginal )");
     }
 
@@ -52,7 +56,9 @@ public sealed class LrcLibClient : IDisposable
         var query = $"get?artist_name={Uri.EscapeDataString(artist)}&track_name={Uri.EscapeDataString(title)}"
                     + $"&album_name={Uri.EscapeDataString(album)}&duration={(int)Math.Round(length.TotalSeconds)}";
         var body = await AskAsync(query, ct);
-        return body is null ? null : Result(JsonDocument.Parse(body).RootElement);
+        if (body is null) return null;
+        using var doc = Parse(body);
+        return doc.RootElement.ValueKind == JsonValueKind.Object ? Result(doc.RootElement) : null;
     }
 
     /// Every result for an artist and title, any album and length.
@@ -60,8 +66,8 @@ public sealed class LrcLibClient : IDisposable
     {
         var body = await AskAsync($"search?artist_name={Uri.EscapeDataString(artist)}&track_name={Uri.EscapeDataString(title)}", ct);
         if (body is null) return [];
-        var root = JsonDocument.Parse(body).RootElement;
-        return root.ValueKind == JsonValueKind.Array ? root.EnumerateArray().Select(Result).ToList() : [];
+        using var doc = Parse(body);
+        return Json.Items(doc.RootElement).Where(e => e.ValueKind == JsonValueKind.Object).Select(Result).ToList();
     }
 
     private async Task<byte[]?> AskAsync(string path, CancellationToken ct)
@@ -72,7 +78,9 @@ public sealed class LrcLibClient : IDisposable
             {
                 using var response = await _http.GetAsync(path, ct);
                 if (response.StatusCode == HttpStatusCode.NotFound) return null;
-                if (response.IsSuccessStatusCode) return await response.Content.ReadAsByteArrayAsync(ct);
+                if (response.IsSuccessStatusCode)
+                    return await WebLimits.ReadCappedAsync(response.Content, Json.MaxAnswerBytes, ct)
+                           ?? throw new LrcLibException("LRCLIB sent an answer too large to be one");
                 if ((int)response.StatusCode < 500 || attempt >= 2)
                     throw new LrcLibException($"LRCLIB answered {(int)response.StatusCode}");
             }
@@ -86,19 +94,30 @@ public sealed class LrcLibClient : IDisposable
         }
     }
 
+    /// The longest a track may be and still be believed: a day.
+    private const double MaxDuration = 86_400;
+
+    /// An answer that is not JSON (a maintenance page served with 200) is
+    /// LRCLIB failing, said as such (security review 2026-10-31, A2).
+    private static JsonDocument Parse(byte[] body) =>
+        Json.TryParse(body) ?? throw new LrcLibException("LRCLIB sent something that is not an answer");
+
+    /// One result. A duration that is not a believable track length (negative,
+    /// over a day, not finite) counts as none, so a fit is never taken on it.
     public static LrcLibResult Result(JsonElement e) => new(
-        e.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.Number ? id.GetInt64() : 0,
+        Json.Long(e, "id") ?? 0,
         Str(e, "trackName"), Str(e, "artistName"), Str(e, "albumName"),
-        e.TryGetProperty("duration", out var d) && d.ValueKind == JsonValueKind.Number ? d.GetDouble() : 0,
-        e.TryGetProperty("instrumental", out var i) && i.ValueKind == JsonValueKind.True,
+        Json.Double(e, "duration") is { } d and > 0 and <= MaxDuration ? d : 0,
+        Json.True(e, "instrumental"),
         NullIfBlank(Str(e, "plainLyrics")), NullIfBlank(Str(e, "syncedLyrics")));
 
     /// How `result` fits a track of `length` called `title` by `artist`.
     public static LyricsFit Fit(LrcLibResult result, string artist, string title, TimeSpan length)
     {
-        var seconds = (int)Math.Round(result.Duration - length.TotalSeconds);
+        var known = result.Duration > 0;
+        var seconds = known ? (int)Math.Clamp(Math.Round(result.Duration - length.TotalSeconds), -MaxDuration, MaxDuration) : 0;
         var names = Same(result.Artist, artist) && Same(result.Track, title);
-        return new LyricsFit(result, seconds, names, Math.Abs(seconds) <= AutoSeconds && names && (result.HasSynced || result.HasPlain || result.Instrumental));
+        return new LyricsFit(result, seconds, names, known && Math.Abs(seconds) <= AutoSeconds && names && (result.HasSynced || result.HasPlain || result.Instrumental));
     }
 
     /// Results for a track, best first: automatic fits, then synced, then the
@@ -115,8 +134,7 @@ public sealed class LrcLibClient : IDisposable
 
     private static string Letters(string s) => new(s.Where(char.IsLetterOrDigit).ToArray());
 
-    private static string Str(JsonElement e, string name) =>
-        e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+    private static string Str(JsonElement e, string name) => Json.Str(e, name) ?? "";
 
     private static string? NullIfBlank(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
 

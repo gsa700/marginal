@@ -81,7 +81,7 @@ public sealed partial class LookupWindow : Window
             if (rows.Count > 0) ReleaseList.SelectedIndex = 0;
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) when (ex is MusicBrainzException or HttpRequestException)
+        catch (Exception ex)
         {
             Busy(null);
             Status($"MusicBrainz: {ex.Message}", Tones.BadText);
@@ -126,7 +126,7 @@ public sealed partial class LookupWindow : Window
             ShowRelease();
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) when (ex is MusicBrainzException or HttpRequestException)
+        catch (Exception ex)
         {
             Status($"MusicBrainz: {ex.Message}", Tones.BadText);
         }

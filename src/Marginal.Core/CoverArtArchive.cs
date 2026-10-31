@@ -13,8 +13,9 @@
 //     never as "no art".
 //   * Other editions of the album come from MusicBrainz's release browse,
 //     which says for each whether the archive holds art for it.
-//   * Only the archive's own hosts are asked (WebLimits.IsArchiveUrl), and
-//     no download may exceed WebLimits.MaxImageBytes.
+//   * Only the archive's own hosts are asked (WebLimits.IsArchiveUrl), on
+//     every redirect too; no download may exceed WebLimits.MaxImageBytes or
+//     take longer than RequestLimit.
 
 using System.Net;
 using System.Text.Json;
@@ -96,20 +97,18 @@ public static class CoverArtArchive
     public static IReadOnlyList<ArtCandidate> Parse(JsonElement index, string releaseId, string edition, bool ours)
     {
         var list = new List<ArtCandidate>();
-        if (!index.TryGetProperty("images", out var images) || images.ValueKind != JsonValueKind.Array) return list;
         var page = 0;
-        foreach (var image in images.EnumerateArray())
+        foreach (var image in Json.Items(index, "images"))
         {
-            var types = image.TryGetProperty("types", out var t) && t.ValueKind == JsonValueKind.Array
-                ? t.EnumerateArray().Select(x => x.GetString() ?? "").ToList() : [];
+            var types = Json.Items(image, "types").Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString() ?? "").ToList();
             var front = types.Contains("Front") || Flag(image, "front");
             var back = !front && (Flag(image, "back") || types.Contains("Back"));
             var booklet = !front && !back && types.Contains("Booklet");
             if (!front && !back && !booklet) continue;
             var full = Https(Str(image, "image"));
             if (full is null || !WebLimits.IsArchiveUrl(full)) continue;
-            var thumb = image.TryGetProperty("thumbnails", out var th) && th.ValueKind == JsonValueKind.Object
-                ? Https(Str(th, "250") ?? Str(th, "small")) : null;
+            var th = Json.Get(image, "thumbnails");
+            var thumb = Https(Str(th, "250") ?? Str(th, "small"));
             list.Add(new ArtCandidate(releaseId, edition, ours,
                 front ? ArtSlot.Front : back ? ArtSlot.Back : ArtSlot.Booklet,
                 thumb is not null && WebLimits.IsArchiveUrl(thumb) ? thumb : full, full, booklet ? ++page : 0));
@@ -120,10 +119,9 @@ public static class CoverArtArchive
     /// The editions with art in a release browse, nearest the files' first.
     public static IEnumerable<(string Id, string Label)> Editions(JsonElement browse, string? ours)
     {
-        if (!browse.TryGetProperty("releases", out var releases) || releases.ValueKind != JsonValueKind.Array) yield break;
-        var all = releases.EnumerateArray().Select(r => (
+        var all = Json.Items(browse, "releases").Select(r => (
             Id: Str(r, "id") ?? "", Country: Str(r, "country"), Date: Str(r, "date"),
-            Art: r.TryGetProperty("cover-art-archive", out var caa) && caa.TryGetProperty("count", out var c) && c.ValueKind == JsonValueKind.Number && c.GetInt32() > 0,
+            Art: Json.Get(Json.Get(r, "cover-art-archive"), "count") is { ValueKind: JsonValueKind.Number } c && c.TryGetDouble(out var n) && n > 0,
             Label: Label(r))).ToList();
         var me = all.FirstOrDefault(r => r.Id == ours);
         var myYear = Year(me.Date);
@@ -138,17 +136,15 @@ public static class CoverArtArchive
     /// "1990 US CD" for a release in a browse.
     public static string EditionOf(JsonElement browse, string id)
     {
-        if (browse.TryGetProperty("releases", out var releases) && releases.ValueKind == JsonValueKind.Array)
-            foreach (var r in releases.EnumerateArray())
-                if (Str(r, "id") == id) return Label(r);
+        foreach (var r in Json.Items(browse, "releases"))
+            if (Str(r, "id") == id) return Label(r);
         return "your release";
     }
 
     private static string Label(JsonElement r)
     {
         var date = Str(r, "date") is { Length: >= 4 } d ? d[..4] : "";
-        var formats = r.TryGetProperty("media", out var m) && m.ValueKind == JsonValueKind.Array
-            ? string.Join("+", m.EnumerateArray().Select(x => Str(x, "format") ?? "").Where(f => f.Length > 0).Distinct()) : "";
+        var formats = string.Join("+", Json.Items(r, "media").Select(x => Str(x, "format") ?? "").Where(f => f.Length > 0).Distinct());
         var label = string.Join(" ", new[] { date, Str(r, "country") ?? "", formats }.Where(s => s.Length > 0));
         return label.Length > 0 ? label : "another edition";
     }
@@ -176,44 +172,66 @@ public static class CoverArtArchive
         catch (JsonException) { return (null, "an unreadable index"); }
     }
 
+    /// The longest one request may take, body included: HttpClient.Timeout
+    /// stops at the headers when the body is read as it arrives, and a server
+    /// sending a byte every few seconds kept a download going indefinitely
+    /// (security review 2026-10-31, A9).
+    public static TimeSpan RequestLimit { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// Redirects followed per request, each to the archive's own hosts only.
+    private const int MaxRedirects = 5;
+
     private static async Task<(byte[]?, string?)> GetAsync(HttpClient http, string url, CancellationToken ct)
     {
         var error = "gave up";
         for (var attempt = 1; attempt <= 2; attempt++)
         {
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            limit.CancelAfter(RequestLimit);
             try
             {
-                using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
-                if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest) return (null, null);
-                if (response.IsSuccessStatusCode)
-                    return await WebLimits.ReadCappedAsync(response.Content, WebLimits.MaxImageBytes, ct) is { } body
-                        ? (body, null) : (null, "too large");
-                error = $"answered {(int)response.StatusCode}";
-                if ((int)response.StatusCode < 500) return (null, error);
+                var at = new Uri(url);
+                for (var hop = 0; ; hop++)
+                {
+                    using var response = await http.GetAsync(at, HttpCompletionOption.ResponseHeadersRead, limit.Token);
+                    // Redirects are followed here, not by the handler, so every
+                    // hop is held to the archive's hosts (review A11).
+                    if ((int)response.StatusCode is >= 300 and < 400 && response.Headers.Location is { } next)
+                    {
+                        at = next.IsAbsoluteUri ? next : new Uri(at, next);
+                        if (hop >= MaxRedirects || !WebLimits.IsArchiveUrl(at.AbsoluteUri)) return (null, "sent elsewhere");
+                        continue;
+                    }
+                    if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest) return (null, null);
+                    if (response.IsSuccessStatusCode)
+                        return await WebLimits.ReadCappedAsync(response.Content, WebLimits.MaxImageBytes, limit.Token) is { } body
+                            ? (body, null) : (null, "too large");
+                    error = $"answered {(int)response.StatusCode}";
+                    if ((int)response.StatusCode < 500) return (null, error);
+                    break;
+                }
             }
             catch (HttpRequestException e) { error = e.HttpRequestError.ToString(); }
-            catch (TaskCanceledException) when (!ct.IsCancellationRequested) { error = "timed out"; }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { error = "timed out"; }
             if (attempt < 2) await Task.Delay(TimeSpan.FromSeconds(3), ct);
         }
         return (null, error);
     }
 
-    /// An HttpClient for the archive: its User-Agent, and redirects followed
-    /// (coverartarchive.org sends images on to archive.org).
+    /// An HttpClient for the archive: its User-Agent, redirects left to
+    /// GetAsync (coverartarchive.org sends images on to archive.org).
     public static HttpClient Client()
     {
-        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+        var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(60) };
         http.DefaultRequestHeaders.UserAgent.ParseAdd($"Marginal/{AppVersion.Current} ( https://github.com/gsa700/marginal )");
         return http;
     }
 
     private static string? Https(string? url) => url?.Replace("http://", "https://");
 
-    private static bool Flag(JsonElement e, string name) =>
-        e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
+    private static bool Flag(JsonElement e, string name) => Json.True(e, name);
 
-    private static string? Str(JsonElement e, string name) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+    private static string? Str(JsonElement e, string name) => Json.Str(e, name);
 
     private static int? Year(string? date) =>
         date is { Length: >= 4 } && int.TryParse(date.AsSpan(0, 4), out var y) ? y : null;

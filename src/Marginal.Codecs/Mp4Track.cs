@@ -216,10 +216,17 @@ public sealed class Mp4Track : IAudioTrack
         return movie;
     }
 
+    /// How deep boxes are followed. A real file goes six or seven deep
+    /// (moov/udta/meta/ilst/©nam/data); a crafted 24 KB one nested 3,000 deep
+    /// overflowed the stack, which no catch can stop (Marginal security review
+    /// 2026-10-31, A1). Deeper boxes are ignored.
+    private const int MaxDepth = 16;
+
     /// The boxes inside [start, end), those that matter, recursively. `trak`
     /// collects one track's boxes, kept only if it is the first audio track.
-    private void Walk(long start, long end, Movie movie, Movie? trak)
+    private void Walk(long start, long end, Movie movie, Movie? trak, int depth = 0)
     {
+        if (depth > MaxDepth) return;
         var at = start;
         while (at + 8 <= end)
         {
@@ -238,7 +245,7 @@ public sealed class Mp4Track : IAudioTrack
                 {
                     if (movie.HaveAudio) break;
                     var t = new Movie { MovieTimescale = movie.MovieTimescale };
-                    Walk(body, bodyEnd, t, t);
+                    Walk(body, bodyEnd, t, t, depth + 1);
                     if (t.HaveAudio && (t.Asc is not null || t.AlacCookie is not null))
                     {
                         movie.HaveAudio = true;
@@ -263,11 +270,11 @@ public sealed class Mp4Track : IAudioTrack
                 case "edts":
                 case "udta":
                 case "ilst":
-                    Walk(body, bodyEnd, movie, trak);
+                    Walk(body, bodyEnd, movie, trak, depth + 1);
                     break;
                 case "meta":
                     // A full box in MP4 (version and flags first), not in QuickTime.
-                    Walk(Be32(body) == 0 ? body + 4 : body, bodyEnd, movie, trak);
+                    Walk(Be32(body) == 0 ? body + 4 : body, bodyEnd, movie, trak, depth + 1);
                     break;
                 case "mdhd" when trak is not null:
                 {

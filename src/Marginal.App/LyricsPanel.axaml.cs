@@ -30,6 +30,8 @@ public sealed partial class LyricsPanel : UserControl
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromMilliseconds(50) };
     private bool _movingSlider;
     private int _tapLine = -1;
+    private Lrc.Timeline? _timeline;
+    private string? _timelineText;
 
     /// The lines stamped since Tap to time was turned on, newest last, and the
     /// time each had before (null: none), so Back a line can undo them in turn.
@@ -193,14 +195,17 @@ public sealed partial class LyricsPanel : UserControl
         PositionSlider.Maximum = Math.Max(1, duration.TotalSeconds);
         PositionSlider.Value = Math.Min(position.TotalSeconds, PositionSlider.Maximum);
         _movingSlider = false;
-        // The line being sung, from the editor as it is now.
+        // The line being sung, from the editor as it is now (read again only
+        // when the text has changed).
         if (SyncedView.IsChecked == true)
         {
             var text = Editor.Text ?? "";
-            var i = Lrc.LineAt(text, position);
+            if (_timeline is null || !ReferenceEquals(_timelineText, text)) { _timeline = Lrc.TimelineOf(text); _timelineText = text; }
+            var lines = _timeline.Lines;
+            var i = _timeline.LineAt(position);
             NowLine.Text = TapButton.IsChecked == true
-                ? (_tapLine >= 0 ? $"Space stamps: {Lrc.Words(Lrc.Lines(text)[_tapLine])}" : "every line is timed")
-                : i >= 0 ? $"now: {Lrc.Words(Lrc.Lines(text)[i])}" : "";
+                ? (_tapLine >= 0 && _tapLine < lines.Length ? $"Space stamps: {Lrc.Words(lines[_tapLine])}" : "every line is timed")
+                : i >= 0 ? $"now: {Lrc.Words(lines[i])}" : "";
         }
     }
 
@@ -257,7 +262,9 @@ public sealed partial class LyricsPanel : UserControl
         if (_tapLine < 0) return;
         _tapped.Push((_tapLine, Lrc.TimeOf(Lrc.Lines(Editor.Text)[_tapLine])));
         BackLineButton.IsEnabled = true;
-        var text = Lrc.SetTime(Editor.Text, _tapLine, _player.Position);
+        // The stamp is written as the file will be read: a lyric with an
+        // [offset:] has it taken off every time when played.
+        var text = Lrc.SetTime(Editor.Text, _tapLine, _player.Position + Lrc.Offset(Editor.Text));
         var stamped = _tapLine;
         _tapLine = Lrc.NextTimeable(text, _tapLine);
         SetEdited(text, caretOnLine: _tapLine >= 0 ? _tapLine : stamped);
@@ -282,7 +289,7 @@ public sealed partial class LyricsPanel : UserControl
         text = before is { } b ? Lrc.SetTime(text, line, b) : Lrc.ClearTime(text, line);
         _tapLine = line;
         SetEdited(text, caretOnLine: line);
-        if (stampedAt is { } t) _player.Seek(t > TimeSpan.FromSeconds(3) ? t - TimeSpan.FromSeconds(3) : TimeSpan.Zero);
+        if (stampedAt - Lrc.Offset(text) is { } t) _player.Seek(t > TimeSpan.FromSeconds(3) ? t - TimeSpan.FromSeconds(3) : TimeSpan.Zero);
         BackLineButton.IsEnabled = _tapped.Count > 0;
         Tick();
     }
@@ -433,6 +440,7 @@ public sealed partial class LyricsPanel : UserControl
         }
         catch (OperationCanceledException) { }
         catch (LrcLibException ex) { FoundNote.Text = $"{ex.Message}. Try again later."; }
+        catch (Exception ex) { FoundNote.Text = $"LRCLIB: {ex.Message}"; }
         finally { if (!cancel.IsCancellationRequested) Busy(null); }
     }
 
@@ -463,6 +471,11 @@ public sealed partial class LyricsPanel : UserControl
         {
             Busy(null);
             FoundNote.Text = $"{ex.Message} after {asked - 1} of {tracks.Count} tracks. Try again later.";
+        }
+        catch (Exception ex)
+        {
+            Busy(null);
+            FoundNote.Text = $"LRCLIB: {ex.Message} after {asked - 1} of {tracks.Count} tracks.";
         }
     }
 

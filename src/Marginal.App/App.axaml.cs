@@ -21,6 +21,16 @@ public sealed class App : Application
         {
             var window = new MainWindow();
             desktop.MainWindow = window;
+            // The last line of defence: an error that escapes a click or an
+            // answer from the web is shown, not allowed to close the app with
+            // Pending in it (a 200 maintenance page did that; security review
+            // 2026-10-31, A2). Each handler still catches what it expects.
+            Avalonia.Threading.Dispatcher.UIThread.UnhandledException += (_, e) =>
+            {
+                Console.Error.WriteLine($"[error] {e.Exception}");
+                window.ShowError(e.Exception.Message);
+                e.Handled = true;
+            };
             // `marginal <folder> [--from albumwall]` opens that folder (spec §6);
             // other arguments are ignored.
             var args = desktop.Args ?? [];

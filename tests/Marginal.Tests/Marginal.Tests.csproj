@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Marginal.Core\Marginal.Core.csproj" />
+    <ProjectReference Include="..\..\src\Marginal.Codecs\Marginal.Codecs.csproj" />
   </ItemGroup>
 
 </Project>

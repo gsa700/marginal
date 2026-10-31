@@ -31,6 +31,9 @@ public sealed class MusicBrainzClient : IDisposable
         _http = handler is null ? new HttpClient() : new HttpClient(handler);
         _http.BaseAddress = new Uri("https://musicbrainz.org/ws/2/");
         _http.Timeout = TimeSpan.FromSeconds(30);
+        // An answer is buffered whole before it is read; no bigger than this
+        // (an endless one grew to 2.7 GB; security review 2026-10-31, A8).
+        _http.MaxResponseContentBufferSize = Json.MaxAnswerBytes;
         _http.DefaultRequestHeaders.UserAgent.ParseAdd($"Marginal/{AppVersion.Current} ( https://github.com/gsa700/marginal )");
         _http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
     }
@@ -40,7 +43,7 @@ public sealed class MusicBrainzClient : IDisposable
     {
         if (!WebLimits.IsMbid(releaseId)) throw new MusicBrainzException($"\"{releaseId}\" is not a MusicBrainz release ID.");
         var body = await GetAsync($"release/{releaseId}?inc={ReleaseIncludes}&fmt=json", ct);
-        return body is null ? null : JsonDocument.Parse(body);
+        return body is null ? null : Parse(body);
     }
 
     /// A release search. `query` is a Lucene query, encoded here as a whole:
@@ -48,7 +51,7 @@ public sealed class MusicBrainzClient : IDisposable
     public async Task<JsonDocument?> SearchReleasesAsync(string query, int limit = 25, CancellationToken ct = default)
     {
         var body = await GetAsync($"release/?query={Uri.EscapeDataString(query)}&fmt=json&limit={limit}", ct);
-        return body is null ? null : JsonDocument.Parse(body);
+        return body is null ? null : Parse(body);
     }
 
     /// Every edition in a release group, each with the archive's
@@ -57,8 +60,13 @@ public sealed class MusicBrainzClient : IDisposable
     {
         if (!WebLimits.IsMbid(releaseGroupId)) throw new MusicBrainzException($"\"{releaseGroupId}\" is not a MusicBrainz release-group ID.");
         var body = await GetAsync($"release?release-group={releaseGroupId}&inc=media&limit=100&fmt=json", ct);
-        return body is null ? null : JsonDocument.Parse(body);
+        return body is null ? null : Parse(body);
     }
+
+    /// An answer that is not JSON (a maintenance page served with 200) is
+    /// MusicBrainz failing, said as such (security review 2026-10-31, A2).
+    private static JsonDocument Parse(byte[] body) =>
+        Json.TryParse(body) ?? throw new MusicBrainzException("MusicBrainz sent something that is not an answer");
 
     private async Task<byte[]?> GetAsync(string path, CancellationToken ct)
     {
@@ -77,7 +85,8 @@ public sealed class MusicBrainzClient : IDisposable
             }
             if (!response.IsSuccessStatusCode)
                 throw new MusicBrainzException($"MusicBrainz answered {(int)response.StatusCode}");
-            return await response.Content.ReadAsByteArrayAsync(ct);
+            return await WebLimits.ReadCappedAsync(response.Content, Json.MaxAnswerBytes, ct)
+                   ?? throw new MusicBrainzException("MusicBrainz sent an answer too large to be one");
         }
     }
 

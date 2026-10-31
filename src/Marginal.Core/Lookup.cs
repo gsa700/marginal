@@ -70,9 +70,8 @@ public static partial class Lookup
     public static IReadOnlyList<ReleaseCandidate> Candidates(JsonElement search, Album album)
     {
         var tagged = album.Fields.First(f => f.Field == FieldMap.MusicBrainzRelease).Common;
-        var list = search.TryGetProperty("releases", out var releases)
-            ? releases.EnumerateArray().Select(r => Candidate(r, tagged)).ToList()
-            : [];
+        var list = Json.Items(search, "releases").Where(r => r.ValueKind == JsonValueKind.Object)
+            .Select(r => Candidate(r, tagged)).ToList();
         var n = album.Tracks.Count;
         return list
             .OrderByDescending(c => c.Tagged)
@@ -90,44 +89,42 @@ public static partial class Lookup
     public static ReleaseCandidate Candidate(JsonElement r, string? taggedId = null)
     {
         var id = Str(r, "id");
-        var media = r.TryGetProperty("media", out var m) ? m.EnumerateArray().ToList() : [];
+        var media = Json.Items(r, "media").Where(x => x.ValueKind == JsonValueKind.Object).ToList();
         var formats = string.Join(" + ", media.Select(x => Str(x, "format")).Where(f => f.Length > 0)
             .GroupBy(f => f).Select(g => g.Count() > 1 ? $"{g.Count()}×{g.Key}" : g.Key));
-        var tracks = r.TryGetProperty("track-count", out var tc) && tc.ValueKind == JsonValueKind.Number ? tc.GetInt32()
-            : media.Sum(x => x.TryGetProperty("track-count", out var t) && t.ValueKind == JsonValueKind.Number ? t.GetInt32() : 0);
+        var tracks = Json.Int(r, "track-count") ?? media.Sum(x => Math.Clamp(Json.Int(x, "track-count") ?? 0, 0, 10_000));
         var (label, cat) = LabelOf(r);
         return new ReleaseCandidate(id, Str(r, "title"), Credit(r), Str(r, "date"), Str(r, "country"), formats,
-            tracks, label, cat, Str(r, "barcode"), r.TryGetProperty("score", out var s) && s.ValueKind == JsonValueKind.Number ? s.GetInt32() : 0,
+            tracks, label, cat, Str(r, "barcode"), Json.Int(r, "score") ?? 0,
             string.Equals(id, taggedId, StringComparison.OrdinalIgnoreCase));
     }
 
     public static MbRelease Release(JsonElement r)
     {
         var tracks = new List<MbTrack>();
-        var media = r.TryGetProperty("media", out var m) ? m.EnumerateArray().ToList() : [];
+        var media = Json.Items(r, "media").Where(x => x.ValueKind == JsonValueKind.Object).ToList();
         foreach (var medium in media)
         {
-            var disc = medium.TryGetProperty("position", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetInt32() : 1;
-            var list = medium.TryGetProperty("tracks", out var t) ? t.EnumerateArray().ToList() : [];
+            var disc = Json.Int(medium, "position") ?? 1;
+            var list = Json.Items(medium, "tracks").Where(x => x.ValueKind == JsonValueKind.Object).ToList();
             foreach (var track in list)
             {
-                var number = track.TryGetProperty("position", out var tp) && tp.ValueKind == JsonValueKind.Number ? tp.GetInt32() : tracks.Count + 1;
-                int? length = track.TryGetProperty("length", out var l) && l.ValueKind == JsonValueKind.Number ? l.GetInt32() : null;
-                var artist = track.TryGetProperty("artist-credit", out _) ? Credit(track) : Credit(r);
+                var number = Json.Int(track, "position") ?? tracks.Count + 1;
+                var length = Json.Int(track, "length") is { } l && l >= 0 ? l : (int?)null;
+                var artist = Json.Has(track, "artist-credit") ? Credit(track) : Credit(r);
                 tracks.Add(new MbTrack(disc, media.Count, number, list.Count, Str(track, "title"), artist, length));
             }
         }
-        var group = r.TryGetProperty("release-group", out var g) ? g : default;
+        var group = Json.Get(r, "release-group");
         var (label, cat) = LabelOf(r);
-        var art = r.TryGetProperty("cover-art-archive", out var caa) ? caa : default;
+        var art = Json.Get(r, "cover-art-archive");
         return new MbRelease(Str(r, "id"), Str(r, "title"), Credit(r), Str(r, "date"),
             group.ValueKind == JsonValueKind.Object ? Str(group, "first-release-date") : "",
             group.ValueKind == JsonValueKind.Object ? Str(group, "id") : "",
             label, cat, Str(r, "barcode"), Str(r, "country"),
             string.Join(" + ", media.Select(x => Str(x, "format")).Where(f => f.Length > 0).Distinct()),
             tracks,
-            art.ValueKind == JsonValueKind.Object && art.TryGetProperty("front", out var fr) && fr.ValueKind == JsonValueKind.True,
-            art.ValueKind == JsonValueKind.Object && art.TryGetProperty("back", out var bk) && bk.ValueKind == JsonValueKind.True);
+            Json.True(art, "front"), Json.True(art, "back"));
     }
 
     // ---- pairing ---------------------------------------------------------------
@@ -235,22 +232,19 @@ public static partial class Lookup
 
     private static string? Blank(string s) => s.Length == 0 ? null : s;
 
-    private static string Str(JsonElement e, string name) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+    private static string Str(JsonElement e, string name) => Json.Str(e, name) ?? "";
 
     /// An artist credit as written: names and join phrases ("A feat. B").
     private static string Credit(JsonElement e)
     {
-        if (!e.TryGetProperty("artist-credit", out var credit) || credit.ValueKind != JsonValueKind.Array) return "";
-        return string.Concat(credit.EnumerateArray().Select(c => Str(c, "name") + Str(c, "joinphrase")));
+        return string.Concat(Json.Items(e, "artist-credit").Select(c => Str(c, "name") + Str(c, "joinphrase")));
     }
 
     private static (string Label, string Catalog) LabelOf(JsonElement r)
     {
-        if (!r.TryGetProperty("label-info", out var info) || info.ValueKind != JsonValueKind.Array) return ("", "");
-        var first = info.EnumerateArray().FirstOrDefault();
+        var first = Json.Items(r, "label-info").FirstOrDefault();
         if (first.ValueKind != JsonValueKind.Object) return ("", "");
-        var label = first.TryGetProperty("label", out var l) && l.ValueKind == JsonValueKind.Object ? Str(l, "name") : "";
+        var label = Str(Json.Get(first, "label"), "name");
         return (label, Str(first, "catalog-number"));
     }
 
