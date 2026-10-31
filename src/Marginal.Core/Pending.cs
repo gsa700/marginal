@@ -45,18 +45,19 @@ public static class Pending
     }
 
     /// The leftovers "Clean junk tags" offers to remove: ID3v1 and APE tags
-    /// beside an ID3v2 one, and frames TrackReader marks as junk (store and
-    /// player leftovers). Music metadata is never on this list.
+    /// beside an ID3v2 one, and frames and atoms TrackReader marks as junk
+    /// (store and player leftovers). Music metadata is never on this list.
     public static IReadOnlyList<Change> CleanJunk(Album album)
     {
         var changes = new List<Change>();
+        // A freeform atom that is removed takes its whole box: one change per key.
         foreach (var t in album.Tracks.Where(t => t.Problem is null))
         {
             if (t.HasId3v1) changes.Add(new Change(t.Path, ChangeOp.RemoveTag, ChangeKind.Remove, "ID3v1", "present", null));
             if (t.HasApe) changes.Add(new Change(t.Path, ChangeOp.RemoveTag, ChangeKind.Remove, "APE", "present", null));
-            // MP4 junk atoms wait: TagLib# has no plain way to drop one freeform atom.
-            if (t.Format == AudioFormat.M4a) continue;
-            foreach (var r in t.Raw.Where(r => r.Junk))
+            var junk = t.Raw.Where(r => r.Junk);
+            if (t.Format == AudioFormat.M4a) junk = junk.DistinctBy(r => r.Key);
+            foreach (var r in junk)
                 changes.Add(new Change(t.Path, ChangeOp.RemoveFrame, ChangeKind.Remove, r.Key, r.Value, null));
         }
         return changes;

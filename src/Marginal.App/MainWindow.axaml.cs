@@ -26,6 +26,9 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         UpdateUndo();
+        UpdateBackups();
+        // Originals older than the keeping time go, quietly, at each start.
+        _ = Task.Run(() => Backups.Prune(Backups.Keep)).ContinueWith(_ => Dispatcher.UIThread.Post(UpdateBackups));
     }
 
     /// `marginal <folder>`: open it straight away (spec §6).
@@ -107,7 +110,17 @@ public sealed partial class MainWindow : Window
         // Same title and artist twice: show each one's folder name.
         var twins = _albums.GroupBy(r => (r.Title.ToLowerInvariant(), r.Album.Artist.ToLowerInvariant()))
             .Where(g => g.Count() > 1).SelectMany(g => g).ToHashSet();
-        foreach (var r in _albums) r.ShowFolder = twins.Contains(r);
+        foreach (var r in _albums)
+        {
+            r.ShowFolder = twins.Contains(r);
+            r.PendingCount = _pending.TryGetValue(r.Album.Folder, out var p) ? p.Count : 0;
+        }
+        var pendingAlbums = _albums.Count(r => r.HasPending);
+        ChipPending.IsVisible = pendingAlbums > 0;
+        if (pendingAlbums == 0 && ChipPending.IsChecked == true) { ChipPending.IsChecked = false; ChipAll.IsChecked = true; }
+        if (ChipPending.IsChecked == true) rows = rows.Where(r => r.HasPending);
+        ShowLibraryPending();
+        CleanButton.IsEnabled = _albums.Count > 0;
 
         var selected = AlbumList.SelectedItem;
         var list = rows.ToList();
@@ -236,7 +249,7 @@ public sealed partial class MainWindow : Window
             .Select(f => FieldRow.From(album.Fields.First(s => s.Field == f), album, pending)).ToList();
         FieldList.SelectedItem = null;
         FieldList.SelectionChanged += OnFieldSelected;
-        CleanButton.IsEnabled = Pending.CleanJunk(album).Any(c => !pending.Contains(c));
+        CleanAlbumItem.IsEnabled = Pending.CleanJunk(album).Any(c => !pending.Contains(c));
     }
 
     private void OnFieldSelected(object? sender, SelectionChangedEventArgs e)
@@ -292,6 +305,7 @@ public sealed partial class MainWindow : Window
         ResultBox.IsVisible = false;
         ShowFields();
         ShowPending();
+        UpdatePendingMarks();
     }
 
     private void ShowPending()
@@ -318,6 +332,7 @@ public sealed partial class MainWindow : Window
         _pending.Remove(_album.Folder);
         ShowFields();
         ShowPending();
+        UpdatePendingMarks();
     }
 
     private async void OnWrite(object? sender, RoutedEventArgs e)
@@ -339,6 +354,7 @@ public sealed partial class MainWindow : Window
             result.Problems.Select(p => $"{p.File}: {p.Problem} (left as it was)"),
             result.Problems.Count == 0 ? Tone.Clean : Tone.Missing);
         UpdateUndo();
+        UpdateBackups();
     }
 
     private async void OnUndo(object? sender, RoutedEventArgs e)
@@ -348,12 +364,14 @@ public sealed partial class MainWindow : Window
         var (problems, reread) = await Task.Run(() =>
         {
             var p = TagWriter.Undo(batch);
-            return (p, Directory.Exists(batch.Folder) ? AlbumReader.Read(batch.Folder) : null);
+            return (p, batch.Folders.Where(Directory.Exists).Select(AlbumReader.Read).ToList());
         });
-        if (reread is not null) ReplaceAlbum(reread);
-        ShowResult($"Undid the write of {batch.Time:HH:mm:ss}: {batch.Files.Count - problems.Count} of {batch.Files.Count} files back as they were.",
-            problems.Select(p => $"{p.File}: {p.Problem}"), problems.Count == 0 ? Tone.Clean : Tone.Missing);
+        foreach (var a in reread) ReplaceAlbum(a);
+        var undid = $"Undid the write of {batch.Time:HH:mm:ss}: {batch.Files.Count - problems.Count} of {batch.Files.Count} files back as they were.";
+        ShowResult(undid, problems.Select(p => $"{p.File}: {p.Problem}"), problems.Count == 0 ? Tone.Clean : Tone.Missing);
+        ScanText.Text = undid;
         UpdateUndo();
+        UpdateBackups();
     }
 
     private void UpdateUndo()
@@ -361,7 +379,105 @@ public sealed partial class MainWindow : Window
         var latest = TagWriter.Latest();
         UndoButton.IsEnabled = latest is not null;
         ToolTip.SetTip(UndoButton, latest is null ? null
-            : $"Undo the write of {latest.Time:yyyy-MM-dd HH:mm:ss}: {latest.Files.Count} file(s) in {Path.GetFileName(latest.Folder)}");
+            : $"Undo the write of {latest.Time:yyyy-MM-dd HH:mm:ss}: {latest.Files.Count} file(s) in {latest.Folders.Count} album(s)");
+    }
+
+    // ---- across albums --------------------------------------------------------
+
+    /// Every album's junk into its own Pending; then only those albums are
+    /// listed (the Pending chip), each to be looked at before Write all.
+    private void OnCleanLibrary(object? sender, RoutedEventArgs e)
+    {
+        foreach (var row in _albums)
+        {
+            var changes = Pending.CleanJunk(row.Album);
+            if (changes.Count == 0) continue;
+            var list = Core.Pending.Merge(_pending.GetValueOrDefault(row.Album.Folder) ?? [], changes);
+            if (list.Count > 0) _pending[row.Album.Folder] = list;
+        }
+        if (_pending.Count == 0)
+        {
+            ScanText.Text = "no junk tags in this library";
+            return;
+        }
+        foreach (var chip in Chips.Children.OfType<ToggleButton>()) chip.IsChecked = false;
+        ChipPending.IsChecked = true;
+        Refilter();
+        if (_album is not null) { ShowFields(); ShowPending(); }
+    }
+
+    private void UpdatePendingMarks()
+    {
+        foreach (var r in _albums) r.PendingCount = _pending.TryGetValue(r.Album.Folder, out var p) ? p.Count : 0;
+        ChipPending.IsVisible = _pending.Count > 0;
+        ShowLibraryPending();
+    }
+
+    /// The bar shows when more than the album on screen has changes waiting.
+    private void ShowLibraryPending()
+    {
+        var albums = _pending.Count;
+        var changes = _pending.Values.Sum(l => l.Count);
+        var files = _pending.Values.SelectMany(l => l).Select(c => c.Path).Distinct().Count();
+        LibraryPendingBar.IsVisible = albums > 1 || (albums == 1 && _album?.Folder != _pending.Keys.First());
+        LibraryPendingText.Text = $"Pending in {albums} album{(albums == 1 ? "" : "s")}: {changes} change{(changes == 1 ? "" : "s")} in {files} file{(files == 1 ? "" : "s")}. Pick an album to see its list.";
+        WriteAllButton.Content = $"Write all {files} files";
+    }
+
+    private async void OnWriteAll(object? sender, RoutedEventArgs e)
+    {
+        var all = _pending.Values.SelectMany(l => l).ToList();
+        if (all.Count == 0) return;
+        WriteAllButton.IsEnabled = false;
+        WriteAllButton.Content = "Writing…";
+        var folders = _pending.Keys.ToList();
+        var (result, reread) = await Task.Run(() =>
+        {
+            var r = TagWriter.Write(all);
+            return (r, folders.Where(Directory.Exists).Select(AlbumReader.Read).ToList());
+        });
+        _pending.Clear();
+        foreach (var a in reread) ReplaceAlbum(a);
+        WriteAllButton.IsEnabled = true;
+        var refused = result.Problems.Count;
+        ScanText.Text = $"wrote {result.Written} files in {result.Batch?.Folders.Count ?? 0} albums"
+                        + (refused > 0 ? $"; {refused} refused, left as they were" : "") + ". Undo takes it all back.";
+        if (_album is not null)
+            ShowResult($"Wrote {result.Written} files in {result.Batch?.Folders.Count ?? 0} albums. Undo takes it all back.",
+                result.Problems.Select(p => $"{p.File}: {p.Problem} (left as it was)"), refused == 0 ? Tone.Clean : Tone.Missing);
+        UpdatePendingMarks();
+        UpdateUndo();
+        UpdateBackups();
+    }
+
+    private void OnDiscardAll(object? sender, RoutedEventArgs e)
+    {
+        _pending.Clear();
+        Refilter();
+        if (_album is not null) { ShowFields(); ShowPending(); }
+    }
+
+    // ---- backups -------------------------------------------------------------
+
+    private void UpdateBackups()
+    {
+        var list = Backups.List();
+        var bytes = list.Sum(b => b.Bytes);
+        BackupText.Text = bytes == 0
+            ? "backups: the original of every file is kept before a write"
+            : $"backups: {TrackReader.Bytes(bytes)} from {list.Count} write{(list.Count == 1 ? "" : "s")}, kept {Backups.Keep.Days} days";
+        EmptyBackupsButton.IsVisible = bytes > 0;
+        EmptyQuestion.Text = $"Delete the originals kept from {list.Count} write{(list.Count == 1 ? "" : "s")} ({TrackReader.Bytes(bytes)})? "
+                             + "Those writes can no longer be undone. Your music is not touched.";
+    }
+
+    private void OnEmptyBackups(object? sender, RoutedEventArgs e)
+    {
+        var (writes, bytes) = Backups.Empty();
+        EmptyBackupsButton.Flyout?.Hide();
+        ScanText.Text = $"emptied backups: {TrackReader.Bytes(bytes)} from {writes} write{(writes == 1 ? "" : "s")}";
+        UpdateUndo();
+        UpdateBackups();
     }
 
     /// The album as read again after a write: its row is replaced and, if it

@@ -156,6 +156,61 @@ public sealed class WriterTests : IDisposable
     public void A_local_folder_is_not_a_share() => Assert.False(Library.IsOnNetworkShare(_album));
 
     [Fact]
+    public void Removes_itunes_junk_atoms_from_an_m4a()
+    {
+        var m4a = FilePath("03");
+        using (var f = TagLib.File.Create(m4a))
+        {
+            var apple = (TagLib.Mpeg4.AppleTag)f.GetTag(TagLib.TagTypes.Apple, true);
+            apple.SetDashBox("com.apple.iTunes", "iTunNORM", " 00000310 00000313 0000176F");
+            f.Save();
+        }
+        var changes = Pending.CleanJunk(Read());
+        Assert.Contains(changes, c => c.Key == "----:com.apple.iTunes:iTunNORM");
+        Write(changes);
+        var after = Read().Tracks.Single(t => t.Format == AudioFormat.M4a);
+        Assert.DoesNotContain(after.Raw, r => r.Key.Contains("iTunNORM"));
+        Assert.Equal("Third", after.Get(FieldMap.Title));
+    }
+
+    [Fact]
+    public void One_write_spans_albums_and_one_undo_takes_it_all_back()
+    {
+        var second = Path.Combine(_root, "Album 2");
+        Directory.CreateDirectory(second);
+        foreach (var f in Directory.GetFiles(_album)) File.Copy(f, Path.Combine(second, Path.GetFileName(f)));
+        var shas = Directory.GetFiles(_album).Concat(Directory.GetFiles(second)).ToDictionary(f => f, Sha);
+
+        var changes = Pending.CleanJunk(Read()).Concat(Pending.CleanJunk(AlbumReader.Read(second))).ToList();
+        var result = Write(changes);
+        Assert.Equal(2, result.Batch!.Folders.Count);
+        Assert.False(AlbumReader.Read(second).Tracks.Single(t => t.Format == AudioFormat.Mp3).HasId3v1);
+
+        Assert.Empty(TagWriter.Undo(TagWriter.Latest(_backups)!));
+        foreach (var (file, sha) in shas) Assert.Equal(sha, Sha(file));
+    }
+
+    [Fact]
+    public void Backups_are_listed_sized_pruned_and_emptied()
+    {
+        Write(Pending.SetField(Read(), FieldMap.Genre, "Blues"));
+        Write(Pending.SetField(Read(), FieldMap.Genre, "Jazz"));
+        var list = Backups.List(_backups);
+        Assert.Equal(2, list.Count);
+        Assert.All(list, b => Assert.True(b.Bytes > 0));
+        Assert.Equal(list.Sum(b => b.Bytes), Backups.Size(_backups));
+
+        // Nothing is older than 30 days yet; a month on, both are.
+        Assert.Equal(0, Backups.Prune(Backups.Keep, _backups).Writes);
+        Assert.Equal(2, Backups.Prune(Backups.Keep, _backups, DateTime.Now.AddDays(31)).Writes);
+        Assert.Empty(Backups.List(_backups));
+
+        Write(Pending.SetField(Read(), FieldMap.Genre, "Rock"));
+        Assert.Equal(1, Backups.Empty(_backups).Writes);
+        Assert.Null(TagWriter.Latest(_backups));
+    }
+
+    [Fact]
     public void Flac_audio_starts_after_the_metadata_blocks()
     {
         // Measured from the fixture's own blocks: STREAMINFO, PICTURE,

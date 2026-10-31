@@ -23,7 +23,8 @@ What comes next, in order. The spec is `docs/spec.md`.
    the central app folder; Undo. Tested on copies of real albums of each
    format. A library on a network share opens read-only, Write off, with a
    note saying why. Library-wide actions with their full preview.
-2b. **Library-wide actions and backup upkeep.** "Clean junk tags" (and
+2b. **Library-wide actions and backup upkeep.** *Done 2026-10-31: tried by
+   Dave on copies (clean, Write all, Undo, re-clean).* "Clean junk tags" (and
    the like) across the library, every album and change shown first. Backups
    are whole files and add up (two test writes: 364 MB): keep them for a set
    time, show their size, an "Empty backups" button. MP4 junk atoms too.

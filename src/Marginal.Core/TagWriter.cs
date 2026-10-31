@@ -23,8 +23,12 @@ using System.Security.Cryptography;
 
 namespace Marginal.Core;
 
-/// A write: when, which folder, and for each file where its original went.
-public sealed record WriteBatch(string Folder, string BackupFolder, DateTime Time, IReadOnlyList<(string Original, string Backup)> Files);
+/// A write: when, and for each file where its original went. One write can
+/// span many albums (a library-wide clean-up), and one Undo takes it all back.
+public sealed record WriteBatch(string BackupFolder, DateTime Time, IReadOnlyList<(string Original, string Backup)> Files)
+{
+    public IReadOnlyList<string> Folders => Files.Select(f => Path.GetDirectoryName(f.Original)!).Distinct().ToList();
+}
 
 public sealed record WriteResult(WriteBatch? Batch, IReadOnlyList<(string File, string Problem)> Problems)
 {
@@ -50,9 +54,11 @@ public static class TagWriter
         var done = new List<(string Original, string Backup)>();
         if (changes.Count == 0) return new WriteResult(null, problems);
 
-        var folder = Path.GetDirectoryName(changes[0].Path)!;
-        if (Library.IsOnNetworkShare(folder))
-            return new WriteResult(null, [(folder, "on a network share: Marginal writes only to local libraries")]);
+        // Never on a network share (spec §9.6): those files are refused, the rest written.
+        var onShare = changes.Select(c => Path.GetDirectoryName(c.Path)!).Distinct().Where(Library.IsOnNetworkShare).ToHashSet();
+        foreach (var f in onShare) problems.Add((f, "on a network share: Marginal writes only to local libraries"));
+        changes = changes.Where(c => !onShare.Contains(Path.GetDirectoryName(c.Path)!)).ToList();
+        if (changes.Count == 0) return new WriteResult(null, problems);
 
         var time = DateTime.Now;
         var batchFolder = Path.Combine(backupRoot, time.ToString("yyyyMMdd-HHmmss-fff"));
@@ -98,7 +104,7 @@ public static class TagWriter
             try { Directory.Delete(batchFolder); } catch (IOException) { }
             return new WriteResult(null, problems);
         }
-        var batch = new WriteBatch(folder, batchFolder, time, done);
+        var batch = new WriteBatch(batchFolder, time, done);
         System.IO.File.WriteAllLines(Path.Combine(batchFolder, Manifest), done.Select(d => $"{d.Original}\t{Path.GetFileName(d.Backup)}"));
         return new WriteResult(batch, problems);
     }
@@ -118,7 +124,7 @@ public static class TagWriter
             if (files.Count == 0) continue;
             var time = DateTime.TryParseExact(Path.GetFileName(dir), "yyyyMMdd-HHmmss-fff", null,
                 System.Globalization.DateTimeStyles.None, out var t) ? t : Directory.GetCreationTime(dir);
-            return new WriteBatch(Path.GetDirectoryName(files[0].Item1)!, dir, time, files);
+            return new WriteBatch(dir, time, files);
         }
         return null;
     }
@@ -241,6 +247,13 @@ public static class TagWriter
             var rest = xiph.GetField(c.Key).Where(v => v != c.From).ToArray();
             xiph.SetField(c.Key, rest);
         }
+        else if (format == AudioFormat.M4a && file.GetTag(TagLib.TagTypes.Apple) is TagLib.Mpeg4.AppleTag apple)
+        {
+            // "----:<mean>:<name>": a freeform atom, dropped whole; else a plain one.
+            var parts = c.Key.Split(':', 3);
+            if (parts is ["----", var mean, var name]) apple.SetDashBox(mean, name, "");
+            else apple.ClearData(TagLib.ByteVector.FromString(c.Key, TagLib.StringType.Latin1));
+        }
     }
 
     private static TagLib.ByteVector Id(string id) => TagLib.ByteVector.FromString(id, TagLib.StringType.Latin1);
@@ -266,6 +279,9 @@ public static class TagWriter
                 return $"{c.Field!.Name} reads back as \"{after.Get(c.Field!)}\", not \"{c.To}\"";
         if (changes.Any(c => c is { Op: ChangeOp.RemoveTag, Key: "ID3v1" }) && after.HasId3v1) return "the ID3v1 tag is still there";
         if (changes.Any(c => c is { Op: ChangeOp.RemoveTag, Key: "APE" }) && after.HasApe) return "the APE tag is still there";
+        foreach (var c in changes.Where(c => c.Op == ChangeOp.RemoveFrame))
+            if (after.Raw.Any(r => r.Key == c.Key && (before.Format == AudioFormat.M4a || r.Value == c.From)))
+                return $"{c.Key} is still there";
 
         // Every frame not touched must be as it was.
         var touched = changes.SelectMany(Touched).ToHashSet(StringComparer.OrdinalIgnoreCase);

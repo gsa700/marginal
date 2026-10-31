@@ -43,6 +43,23 @@ public sealed class AlbumRow(Album Album) : System.ComponentModel.INotifyPropert
         set { if (field == value) return; field = value; PropertyChanged?.Invoke(this, new(nameof(ShowFolder))); }
     }
 
+    /// How many changes wait in this album's Pending, shown in the list.
+    public int PendingCount
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            PropertyChanged?.Invoke(this, new(nameof(PendingCount)));
+            PropertyChanged?.Invoke(this, new(nameof(PendingText)));
+            PropertyChanged?.Invoke(this, new(nameof(HasPending)));
+        }
+    }
+
+    public string PendingText => $"● {PendingCount} pending";
+    public bool HasPending => PendingCount > 0;
+
     public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
 
     public string Title => Album.Title;

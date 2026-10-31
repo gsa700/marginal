@@ -125,7 +125,14 @@
                     <Border Width="1" Height="22" Background="{DynamicResource Rule}" Margin="4,0"/>
                     <Button Classes="tool" Content="Look up on MusicBrainz" IsEnabled="False"/>
                     <Button Classes="tool" Content="Find art…" IsEnabled="False"/>
-                    <Button x:Name="CleanButton" Classes="tool" Content="Clean junk tags" IsEnabled="False" Click="OnCleanJunk"/>
+                    <Button x:Name="CleanButton" Classes="tool" Content="Clean junk tags ▾" IsEnabled="False">
+                        <Button.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                <MenuItem x:Name="CleanAlbumItem" Header="This album" Click="OnCleanJunk"/>
+                                <MenuItem Header="Whole library (every change shown first)" Click="OnCleanLibrary"/>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -138,7 +145,19 @@
                 <StackPanel Orientation="Horizontal" Spacing="16">
                     <StackPanel Orientation="Horizontal" Spacing="5">
                         <TextBlock Classes="mono" Foreground="{DynamicResource OkText}" Text="●"/>
-                        <TextBlock x:Name="BackupText" Classes="mono soft" Text="backup: the original of every file is kept before a write"/>
+                        <TextBlock x:Name="BackupText" Classes="mono soft" VerticalAlignment="Center"/>
+                        <Button x:Name="EmptyBackupsButton" Classes="tool" Height="22" FontSize="11" Padding="8,0" Content="Empty…">
+                            <Button.Flyout>
+                                <Flyout Placement="TopEdgeAlignedLeft">
+                                    <StackPanel Spacing="10" MaxWidth="320">
+                                        <TextBlock x:Name="EmptyQuestion" TextWrapping="Wrap" LineHeight="19"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Button Classes="tool" Content="Empty backups" Foreground="{DynamicResource BadText}" Click="OnEmptyBackups"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="5">
                         <TextBlock Classes="mono" Foreground="{DynamicResource OkText}" Text="●"/>
@@ -175,12 +194,26 @@
                             <ToggleButton x:Name="ChipMp3" Classes="chip" Content="MP3" Click="OnChip" Margin="0,0,6,6"/>
                             <ToggleButton x:Name="ChipM4a" Classes="chip" Content="M4A" Click="OnChip" Margin="0,0,6,6"/>
                             <ToggleButton x:Name="ChipWork" Classes="chip" Content="Needs work" Click="OnChip" Margin="0,0,6,6"/>
+                            <ToggleButton x:Name="ChipPending" Classes="chip" Content="Pending" Click="OnChip" Margin="0,0,6,6" IsVisible="False"/>
                         </WrapPanel>
                         <WrapPanel Orientation="Horizontal">
                             <TextBlock x:Name="CleanCount" Classes="mono" Foreground="{DynamicResource OkText}" Margin="0,0,10,2"/>
                             <TextBlock x:Name="FixableCount" Classes="mono" Foreground="{DynamicResource WarnText}" Margin="0,0,10,2"/>
                             <TextBlock x:Name="MissingCount" Classes="mono" Foreground="{DynamicResource BadText}" Margin="0,0,10,2"/>
                         </WrapPanel>
+                        <!-- Pending across albums: a library-wide clean-up, or edits left
+                             in several albums. Review is the Pending chip; one Write and
+                             one Undo for all of it. -->
+                        <Border x:Name="LibraryPendingBar" IsVisible="False" Background="{DynamicResource Selected}"
+                                BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="6" Padding="10,8">
+                            <StackPanel Spacing="8">
+                                <TextBlock x:Name="LibraryPendingText" FontSize="12" FontWeight="Medium" TextWrapping="Wrap"/>
+                                <WrapPanel>
+                                    <Button x:Name="WriteAllButton" Classes="primary" Height="28" FontSize="12" Margin="0,0,6,0" Click="OnWriteAll"/>
+                                    <Button Classes="tool" Height="28" FontSize="12" Content="Discard all" Click="OnDiscardAll"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                     <Panel>
                         <TextBlock x:Name="LibraryHint" Classes="dim" TextWrapping="Wrap" LineHeight="19" Margin="16,0"
@@ -211,6 +244,8 @@
                                         <!-- Two albums with one title and artist: which folder is which. -->
                                         <TextBlock Classes="mono dim" Text="{Binding FolderName}" IsVisible="{Binding ShowFolder}"
                                                    TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Classes="mono" Foreground="{DynamicResource Accent}" Text="{Binding PendingText}"
+                                                   IsVisible="{Binding HasPending}"/>
                                     </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
