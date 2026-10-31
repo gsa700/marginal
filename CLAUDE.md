@@ -1,8 +1,8 @@
 # Working in this repository
 
-This repository is PRIVATE for now and will be made PUBLIC later, as it is,
-with its history. So everything committed here should be fit to publish from
-the first commit. The rules are Deadwax's and AlbumWall's.
+This repository is PUBLIC (since 2026-10-31, with its whole history).
+Everything committed and pushed here is published: it can be copied, and a
+force-push does not fully take it back. The rules are Deadwax's and AlbumWall's.
 
 ## Privacy: before every commit and every push
 
