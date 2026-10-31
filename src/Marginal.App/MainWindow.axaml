@@ -174,13 +174,16 @@
         <!-- Status bar. -->
         <Border DockPanel.Dock="Bottom" Background="{DynamicResource Bar}"
                 BorderBrush="{DynamicResource Rule}" BorderThickness="0,1,0,0" Padding="16,7">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Right" Classes="mono soft" Text="FLAC · ID3v2 · MP4"/>
-                <StackPanel Orientation="Horizontal" Spacing="16">
-                    <StackPanel Orientation="Horizontal" Spacing="5">
-                        <TextBlock Classes="mono" Foreground="{DynamicResource OkText}" Text="●"/>
+            <!-- One height for the whole bar (the Empty… button's), everything
+                 centred in it, and the dots drawn rather than typed: a ● in the
+                 mono font sat above the text beside it (Dave, 2026-10-31). -->
+            <DockPanel Height="22">
+                <TextBlock DockPanel.Dock="Right" Classes="mono soft" VerticalAlignment="Center" Text="FLAC · ID3v2 · MP4"/>
+                <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource OkText}" VerticalAlignment="Center"/>
                         <TextBlock x:Name="BackupText" Classes="mono soft" VerticalAlignment="Center"/>
-                        <Button x:Name="EmptyBackupsButton" Classes="tool" Height="22" FontSize="11" Padding="8,0" Content="Empty…">
+                        <Button x:Name="EmptyBackupsButton" Classes="tool" Height="22" FontSize="11" Padding="8,0" Content="Empty…" VerticalAlignment="Center" VerticalContentAlignment="Center">
                             <Button.Flyout>
                                 <Flyout Placement="TopEdgeAlignedLeft">
                                     <StackPanel Spacing="10" MaxWidth="320">
@@ -193,16 +196,16 @@
                             </Button.Flyout>
                         </Button>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="5">
-                        <TextBlock Classes="mono" Foreground="{DynamicResource OkText}" Text="●"/>
-                        <TextBlock Classes="mono soft" Text="audio data: never touched"/>
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource OkText}" VerticalAlignment="Center"/>
+                        <TextBlock Classes="mono soft" VerticalAlignment="Center" Text="audio data: never touched"/>
                     </StackPanel>
-                    <TextBlock x:Name="ScanText" Classes="mono soft"/>
+                    <TextBlock x:Name="ScanText" Classes="mono soft" VerticalAlignment="Center"/>
                 </StackPanel>
             </DockPanel>
         </Border>
 
-        <Grid>
+        <Grid x:Name="Columns">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="270" MinWidth="200" MaxWidth="480"/>
                 <ColumnDefinition Width="Auto"/>

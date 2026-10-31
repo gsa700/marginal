@@ -34,6 +34,21 @@ public sealed partial class ArtWindow : Window
     /// For the previewer only.
     public ArtWindow() : this(AlbumReader.Read(Path.GetTempPath(), []), ArtSlot.Front) { }
 
+    /// Its split and every option, kept (Keep).
+    public void Remember(Settings settings)
+    {
+        Keep.Column(settings, this, Columns, 2, "art.selected");
+        Keep.Tick(settings, this, OtherEditions, "art.otherEditions");
+        Keep.Tick(settings, this, AsPrinted, "art.asPrinted");
+        Keep.Tick(settings, this, CropSquare, "art.cropSquare");
+        Keep.Tick(settings, this, PadSquare, "art.padSquare");
+        Keep.Choice(settings, this, SizeBox, "art.size");
+        Keep.Choice(settings, this, QualityBox, "art.quality");
+        Keep.Tick(settings, this, StripBox, "art.strip");
+        Keep.Tick(settings, this, SaveBox, "art.save");
+        Keep.Tick(settings, this, EmbedBox, "art.embed");
+    }
+
     public ArtWindow(Album album, ArtSlot slot)
     {
         _album = album;

@@ -37,6 +37,16 @@ public sealed partial class LyricsPanel : UserControl
     /// time each had before (null: none), so Back a line can undo them in turn.
     private readonly Stack<(int Line, TimeSpan? Before)> _tapped = new();
 
+    /// Its panes and Write-to ticks, kept with the main window (Keep).
+    public void Remember(Settings settings, Window window)
+    {
+        Keep.Column(settings, window, Columns, 0, "lyrics.tracks");
+        Keep.Column(settings, window, Columns, 4, "lyrics.side");
+        Keep.Tick(settings, window, ToTag, "lyrics.toTag");
+        Keep.Tick(settings, window, ToLrc, "lyrics.toLrc");
+        Keep.Tick(settings, window, TimesInTag, "lyrics.timesInTag");
+    }
+
     /// Text in the editor not yet put in Pending with Use (an update waits for it).
     public bool HasUnusedText => _track is not null && UseButton.IsEnabled;
 

@@ -26,6 +26,9 @@ public sealed partial class LookupWindow : Window
     /// For the previewer only.
     public LookupWindow() : this(AlbumReader.Read(Path.GetTempPath(), [])) { }
 
+    /// Its split, kept (Keep).
+    public void Remember(Settings settings) => Keep.Column(settings, this, Columns, 0, "lookup.releases");
+
     public LookupWindow(Album album)
     {
         _album = album;

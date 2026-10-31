@@ -40,7 +40,7 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid>
+    <Grid x:Name="Columns">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="270" MinWidth="200" MaxWidth="420"/>
             <ColumnDefinition Width="Auto"/>

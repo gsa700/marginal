@@ -27,6 +27,14 @@ public sealed partial class PrefsWindow : Window
         AutoCheckBox.IsChecked = settings.CheckForUpdates;
         EdgeBox.IsChecked = settings.EdgeChannel;
         FillUpdate();
+        // Where it was last time, kept on a screen (WindowPlacement); a first
+        // run opens over the main window.
+        Opened += (_, _) => WindowPlacement.Restore(this, _settings.PrefsX, _settings.PrefsY);
+        Closing += (_, _) =>
+        {
+            if (WindowPlacement.Current(this) is { } p) (_settings.PrefsX, _settings.PrefsY) = (p.X, p.Y);
+            _settings.Save();
+        };
     }
 
     /// Where things stand, from whatever is known: the launch-time check may

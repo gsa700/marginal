@@ -98,7 +98,7 @@
             </DockPanel>
         </Border>
 
-        <Grid>
+        <Grid x:Name="Columns">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="440"/>
                 <ColumnDefinition Width="Auto"/>

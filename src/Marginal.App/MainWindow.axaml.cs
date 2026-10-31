@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
@@ -33,11 +34,28 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // The size it had, then (at Opened) where it was (Dave, 2026-10-31).
+        if (_settings.Width is { } w) Width = Math.Max(w, MinWidth);
+        if (_settings.Height is { } h) Height = Math.Max(h, MinHeight);
+        if (_settings.Maximized && Program.NativeWayland) WindowState = WindowState.Maximized;
+        PositionChanged += (_, _) => { if (_placed && WindowState == WindowState.Normal) _normalPosition = Position; };
+        // Panes and the Lyrics tab's ticks, saved by SavePlacement after them.
+        Keep.Column(_settings, this, Columns, 0, "main.library");
+        Keep.Column(_settings, this, Columns, 4, "main.art");
+        Lyrics.Remember(_settings, this);
+        Closing += (_, _) => SavePlacement();
         Lyrics.Changes += changes => AddPending(changes);
         Lyrics.WriteAsked += () => OnWrite(this, new RoutedEventArgs());
         Closed += (_, _) => Lyrics.Shutdown();
         Opened += async (_, _) =>
         {
+            // Back where it was, kept on a screen (WindowPlacement); maximized
+            // only once placed, so on the screen it was on.
+            if (WindowPlacement.Restore(this, _settings.WindowX, _settings.WindowY)) _normalPosition = Position;
+            else WindowPlacement.FitNew(this);
+            _placed = true;
+            if (_settings.Maximized && !Program.NativeWayland) WindowState = WindowState.Maximized;
+
             // Installing and uninstalling, before anything else (InstallFlow,
             // Deadwax's): true when this run ends here.
             if (await InstallFlow.BeforeStartAsync(this)) return;
@@ -50,13 +68,51 @@ public sealed partial class MainWindow : Window
         _ = Task.Run(() => Backups.Prune(Backups.Keep)).ContinueWith(_ => Dispatcher.UIThread.Post(UpdateBackups));
     }
 
-    /// `marginal <folder>`: open it straight away (spec §6), the album itself
-    /// selected when the folder is one. `from` names the app that asked
-    /// ("albumwall"), shown beside the tabs.
+    private bool _placed;
+    private PixelPoint? _normalPosition;
+
+    /// The normal window's size and corner, not the maximized one's, so
+    /// leaving maximized goes back to what was last chosen.
+    private void SavePlacement()
+    {
+        _settings.Maximized = WindowState == WindowState.Maximized;
+        _settings.LyricsTab = Lyrics.IsVisible;
+        _settings.RawView = _rawView;
+        if (WindowState == WindowState.Normal)
+        {
+            (_settings.Width, _settings.Height) = (Math.Round(Bounds.Width), Math.Round(Bounds.Height));
+            _normalPosition = Position;
+        }
+        if (!Program.NativeWayland && _normalPosition is { } p) (_settings.WindowX, _settings.WindowY) = (p.X, p.Y);
+        _settings.Save();
+    }
+
+    /// A Lookup or Art window at the size it last had, which it keeps on closing.
+    private T Sized<T>(T window, double? width, double? height, Action<double, double> keep) where T : Window
+    {
+        switch (window)
+        {
+            case LookupWindow lookup: lookup.Remember(_settings); break;
+            case ArtWindow art: art.Remember(_settings); break;
+        }
+        if (width is { } w) window.Width = Math.Max(w, window.MinWidth);
+        if (height is { } h) window.Height = Math.Max(h, window.MinHeight);
+        window.Closing += (_, _) =>
+        {
+            if (window.WindowState != WindowState.Normal) return;
+            keep(Math.Round(window.Bounds.Width), Math.Round(window.Bounds.Height));
+            _settings.Save();
+        };
+        return window;
+    }
+
     /// Something went wrong that nothing else caught (App's last line of
     /// defence): said on the status line; Pending is kept.
     public void ShowError(string message) => ScanText.Text = $"something went wrong: {message}";
 
+    /// `marginal <folder>`: open it straight away (spec §6), the album itself
+    /// selected when the folder is one. `from` names the app that asked
+    /// ("albumwall"), shown beside the tabs.
     public void OpenAtStart(string? folder, string? from = null)
     {
         if (string.Equals(from, "albumwall", StringComparison.OrdinalIgnoreCase))
@@ -65,6 +121,10 @@ public sealed partial class MainWindow : Window
             FromChip.IsVisible = true;
         }
         if (folder is not null && Directory.Exists(folder)) Scan(Path.GetFullPath(folder));
+        // Otherwise the library open last time, as it was left.
+        else if (_settings.Folder is { } last && Directory.Exists(last)) Scan(last);
+        if (_settings.RawView) SetRawView(true);
+        if (_settings.LyricsTab) OnTab(LyricsTab, new RoutedEventArgs());
     }
 
     // ---- the library -------------------------------------------------------
@@ -83,6 +143,7 @@ public sealed partial class MainWindow : Window
     /// joins the list as soon as it is read.
     private void Scan(string root)
     {
+        _settings.Folder = root;
         _scan?.Cancel();
         var cancel = _scan = new CancellationTokenSource();
         _albums.Clear();
@@ -257,8 +318,11 @@ public sealed partial class MainWindow : Window
     private void OnFieldsView(object? sender, RoutedEventArgs e) => SetRawView(false);
     private void OnRawView(object? sender, RoutedEventArgs e) => SetRawView(true);
 
+    private bool _rawView;
+
     private void SetRawView(bool raw)
     {
+        _rawView = raw;
         FieldsButton.IsChecked = !raw;
         RawButton.IsChecked = raw;
         FieldsCard.IsVisible = !raw;
@@ -412,7 +476,8 @@ public sealed partial class MainWindow : Window
     private async void OnLookup(object? sender, RoutedEventArgs e)
     {
         if (_album is not { } album) return;
-        var changes = await new LookupWindow(album).ShowDialog<List<Change>?>(this);
+        var changes = await Sized(new LookupWindow(album), _settings.LookupWidth, _settings.LookupHeight,
+            (w, h) => (_settings.LookupWidth, _settings.LookupHeight) = (w, h)).ShowDialog<List<Change>?>(this);
         if (changes is { Count: > 0 } && _album?.Folder == album.Folder) AddPending(changes);
     }
 
@@ -422,7 +487,8 @@ public sealed partial class MainWindow : Window
     {
         if (_album is not { } album) return;
         var slot = album.Cover is not null && album.Back is null ? ArtSlot.Back : ArtSlot.Front;
-        var changes = await new ArtWindow(album, slot).ShowDialog<List<Change>?>(this);
+        var changes = await Sized(new ArtWindow(album, slot), _settings.ArtWidth, _settings.ArtHeight,
+            (w, h) => (_settings.ArtWidth, _settings.ArtHeight) = (w, h)).ShowDialog<List<Change>?>(this);
         if (changes is { Count: > 0 } && _album?.Folder == album.Folder) AddPending(changes);
     }
 
