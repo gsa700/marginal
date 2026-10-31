@@ -186,6 +186,28 @@ public static class AlbumReader
 
 public static class Library
 {
+    /// True for a folder on SMB, NFS, AFP, WebDAV or SSHFS: read-only to
+    /// Marginal (spec §9.6), since a rename there is not always atomic.
+    public static bool IsOnNetworkShare(string path)
+    {
+        try
+        {
+            var full = Path.GetFullPath(path);
+            if (OperatingSystem.IsWindows() && full.StartsWith(@"\\", StringComparison.Ordinal)) return true;
+            var drive = DriveInfo.GetDrives()
+                .Where(d => full.StartsWith(d.RootDirectory.FullName, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                .MaxBy(d => d.RootDirectory.FullName.Length);
+            if (drive is null) return false;
+            if (drive.DriveType == DriveType.Network) return true;
+            var format = drive.DriveFormat.ToLowerInvariant();
+            return format is "smbfs" or "nfs" or "nfs4" or "afpfs" or "webdav" or "cifs" or "smb3" or "fuse.sshfs" or "sshfs";
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     /// Every folder under `root` (and `root` itself) that holds music files,
     /// in path order. Folders only: albums are read one at a time after.
     public static IEnumerable<string> AlbumFolders(string root)

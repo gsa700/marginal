@@ -15,11 +15,18 @@ What comes next, in order. The spec is `docs/spec.md`.
    tracks and raw frames for FLAC, MP3 and M4A through TagLib#. The status
    checks (ID3v1 leftover, values that differ across tracks, missing album
    artist, embedded art vs cover.jpg). Read only: nothing can be written yet.
-2. **Pending and Write.** Edit fields by hand; the Pending list with
+2. **Pending and Write.** *Done 2026-10-31, but for library-wide actions
+   (moved to step 2b): tested by Dave on copies (scratch folder), and by
+   round trips on copies of three real albums, byte-identical after Undo.
+   The backup is the whole original file, moved aside.* Edit fields by hand; the Pending list with
    `+ ~ −`; the safe write (backup, copy, read back, rename) with backups in
    the central app folder; Undo. Tested on copies of real albums of each
    format. A library on a network share opens read-only, Write off, with a
    note saying why. Library-wide actions with their full preview.
+2b. **Library-wide actions and backup upkeep.** "Clean junk tags" (and
+   the like) across the library, every album and change shown first. Backups
+   are whole files and add up (two test writes: 364 MB): keep them for a set
+   time, show their size, an "Empty backups" button. MP4 junk atoms too.
 3. **MusicBrainz lookup.** Search from tags, link, disc ID from `.toc`/`.cue`;
    release ranking; track pairing; what-to-take checklist into Pending.
 4. **Art picker.** Cover Art Archive candidates, file/drop/paste, crop and

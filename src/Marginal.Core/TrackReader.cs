@@ -74,7 +74,9 @@ public static partial class TrackReader
     public static bool IsMusic(string path) =>
         Extensions.Contains(System.IO.Path.GetExtension(path), StringComparer.OrdinalIgnoreCase)
         // macOS AppleDouble files on shares and USB disks: "._01 Track.mp3".
-        && !System.IO.Path.GetFileName(path).StartsWith("._", StringComparison.Ordinal);
+        && !System.IO.Path.GetFileName(path).StartsWith("._", StringComparison.Ordinal)
+        // TagWriter's own working copy, should one ever be left behind.
+        && !System.IO.Path.GetFileName(path).StartsWith(TagWriter.TempPrefix, StringComparison.Ordinal);
 
     public static AudioFormat? FormatOf(string path) => System.IO.Path.GetExtension(path).ToLowerInvariant() switch
     {
@@ -170,42 +172,35 @@ public static partial class TrackReader
         || key.Contains("iTunSMPB", StringComparison.OrdinalIgnoreCase)
         || key.Contains("Amazon", StringComparison.OrdinalIgnoreCase);
 
-    private static IEnumerable<RawFrame> Id3Frames(TagLib.Id3v2.Tag id3)
+    private static IEnumerable<RawFrame> Id3Frames(TagLib.Id3v2.Tag id3) => id3.GetFrames().Select(Id3Raw);
+
+    /// One ID3v2 frame as the Raw view shows it. TagWriter matches frames to
+    /// remove by this, so what is removed is exactly what was shown.
+    public static RawFrame Id3Raw(TagLib.Id3v2.Frame frame)
     {
-        foreach (var frame in id3.GetFrames())
+        var id = frame.FrameId.ToString();
+        switch (frame)
         {
-            var id = frame.FrameId.ToString();
-            switch (frame)
-            {
-                case TagLib.Id3v2.UserTextInformationFrame txxx:
-                    var key = $"TXXX:{txxx.Description}";
-                    yield return new RawFrame(key, string.Join("; ", txxx.Text), IsJunkName(key));
-                    break;
-                case TagLib.Id3v2.TextInformationFrame text:
-                    yield return new RawFrame(id, string.Join("; ", text.Text));
-                    break;
-                case TagLib.Id3v2.UnsynchronisedLyricsFrame uslt:
-                    yield return new RawFrame(id, uslt.Text ?? "");
-                    break;
-                case TagLib.Id3v2.CommentsFrame comm:
-                    var c = comm.Text ?? "";
-                    yield return new RawFrame(string.IsNullOrEmpty(comm.Description) ? id : $"{id}:{comm.Description}", c,
-                        IsJunkName(comm.Description ?? "") || c.Contains("Amazon.com", StringComparison.OrdinalIgnoreCase));
-                    break;
-                case TagLib.Id3v2.AttachmentFrame pic:
-                    var pp = Picture(pic);
-                    yield return new RawFrame(id, $"{pp.Kind} · {pp.Size} · {ShortMime(pp.Mime)} · {Bytes(pp.Bytes)}");
-                    break;
-                case TagLib.Id3v2.PrivateFrame priv:
-                    yield return new RawFrame(id, $"{priv.Owner} ({priv.PrivateData?.Count ?? 0} bytes)", Junk: true);
-                    break;
-                case TagLib.Id3v2.UniqueFileIdentifierFrame ufid:
-                    yield return new RawFrame($"UFID:{ufid.Owner}", ufid.Identifier is { } d ? d.ToString(TagLib.StringType.Latin1) : "");
-                    break;
-                default:
-                    yield return new RawFrame(id, frame.ToString() ?? "");
-                    break;
-            }
+            case TagLib.Id3v2.UserTextInformationFrame txxx:
+                var key = $"TXXX:{txxx.Description}";
+                return new RawFrame(key, string.Join("; ", txxx.Text), IsJunkName(key));
+            case TagLib.Id3v2.TextInformationFrame text:
+                return new RawFrame(id, string.Join("; ", text.Text));
+            case TagLib.Id3v2.UnsynchronisedLyricsFrame uslt:
+                return new RawFrame(id, uslt.Text ?? "");
+            case TagLib.Id3v2.CommentsFrame comm:
+                var c = comm.Text ?? "";
+                return new RawFrame(string.IsNullOrEmpty(comm.Description) ? id : $"{id}:{comm.Description}", c,
+                    IsJunkName(comm.Description ?? "") || c.Contains("Amazon.com", StringComparison.OrdinalIgnoreCase));
+            case TagLib.Id3v2.AttachmentFrame pic:
+                var pp = Picture(pic);
+                return new RawFrame(id, $"{pp.Kind} · {pp.Size} · {ShortMime(pp.Mime)} · {Bytes(pp.Bytes)}");
+            case TagLib.Id3v2.PrivateFrame priv:
+                return new RawFrame(id, $"{priv.Owner} ({priv.PrivateData?.Count ?? 0} bytes)", Junk: true);
+            case TagLib.Id3v2.UniqueFileIdentifierFrame ufid:
+                return new RawFrame($"UFID:{ufid.Owner}", ufid.Identifier is { } d ? d.ToString(TagLib.StringType.Latin1) : "");
+            default:
+                return new RawFrame(id, frame.ToString() ?? "");
         }
     }
 

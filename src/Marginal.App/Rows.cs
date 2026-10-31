@@ -55,7 +55,31 @@ public sealed class AlbumRow(Album Album) : System.ComponentModel.INotifyPropert
 
 public sealed record FieldRow(string Label, string Value, string Note, IBrush NoteText, IBrush NoteFill, string Key, IBrush ValueText)
 {
+    public Field? Field { get; init; }
     public bool HasNote => Note.Length > 0;
+
+    /// The row as it will be after Write: the pending value in its kind's
+    /// colour, with the kind and count as the note.
+    public static FieldRow From(FieldSummary s, Album album, IReadOnlyList<Change> pending)
+    {
+        var row = From(s, album);
+        var mine = pending.Where(c => c.Field == s.Field).ToList();
+        if (mine.Count == 0) return row with { Field = s.Field };
+        var kind = mine.All(c => c.Kind == ChangeKind.Remove) ? ChangeKind.Remove
+                 : mine.All(c => c.Kind == ChangeKind.Add) ? ChangeKind.Add : ChangeKind.Change;
+        var (ink, fill) = PendingRow.Colours(kind);
+        var value = mine[0].To ?? "—";
+        var sign = kind switch { ChangeKind.Add => "+", ChangeKind.Remove => "−", _ => "~" };
+        return row with
+        {
+            Field = s.Field,
+            Value = value,
+            ValueText = ink,
+            Note = $"{sign} {mine.Count} pending",
+            NoteText = ink,
+            NoteFill = fill,
+        };
+    }
 
     public static FieldRow From(FieldSummary s, Album album)
     {
@@ -121,4 +145,23 @@ public sealed record RawRow(string Key, string Value, IBrush ValueText, TextDeco
         var line = v.ReplaceLineEndings(" ⏎ ");
         return line.Length > 160 ? line[..160] + "…" : line;
     }
+}
+
+public sealed record PendingRow(Change Change)
+{
+    public string Kind => Change.Kind switch { ChangeKind.Add => "+ add", ChangeKind.Remove => "− remove", _ => "~ change" };
+    public string File => Change.FileName;
+    public string Key => Change.Key;
+    public string From => Change.From ?? "(none)";
+    public string To => Change.To ?? "removed";
+    public IBrush Ink => Colours(Change.Kind).Ink;
+    public IBrush Fill => Colours(Change.Kind).Fill;
+
+    /// + add green, ~ change orange, − remove red (spec §2, rule 2).
+    public static (IBrush Ink, IBrush Fill) Colours(ChangeKind kind) => kind switch
+    {
+        ChangeKind.Add => (Tones.OkText, Tones.OkFill),
+        ChangeKind.Remove => (Tones.BadText, Tones.BadFill),
+        _ => (Tones.WarnText, Tones.WarnFill),
+    };
 }

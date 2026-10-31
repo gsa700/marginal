@@ -15,10 +15,17 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? _scan;
     private Album? _album;
     private TrackFile? _track;
+    private bool _onShare;
+
+    /// Pending changes, by album folder: switching albums keeps them.
+    private readonly Dictionary<string, List<Change>> _pending = [];
+
+    private List<Change> PendingHere => _album is null ? [] : _pending.GetValueOrDefault(_album.Folder) ?? [];
 
     public MainWindow()
     {
         InitializeComponent();
+        UpdateUndo();
     }
 
     /// `marginal <folder>`: open it straight away (spec §6).
@@ -160,8 +167,11 @@ public sealed partial class MainWindow : Window
         if (missing + fixable == 0) AlbumChips.Children.Add(Chip("clean", Tone.Clean));
 
         ValuesHeader.Text = $"VALUE ACROSS {album.Tracks.Count} FILES";
-        FieldList.ItemsSource = FieldMap.AlbumTable
-            .Select(f => FieldRow.From(album.Fields.First(s => s.Field == f), album)).ToList();
+        _onShare = Library.IsOnNetworkShare(album.Folder);
+        EditBar.IsVisible = false;
+        ResultBox.IsVisible = false;
+        ShowFields();
+        ShowPending();
 
         var rows = album.Tracks.Select(t => new TrackRow(t, album.Checks.Where(c => c.Track == t.FileName).ToList())).ToList();
         TrackList.ItemsSource = rows;
@@ -213,6 +223,171 @@ public sealed partial class MainWindow : Window
         FileFacts.ItemsSource = facts;
 
         ShowEmbeddedArt(track);
+    }
+
+    // ---- editing and Pending -----------------------------------------------
+
+    private void ShowFields()
+    {
+        if (_album is not { } album) return;
+        var pending = PendingHere;
+        FieldList.SelectionChanged -= OnFieldSelected;
+        FieldList.ItemsSource = FieldMap.AlbumTable
+            .Select(f => FieldRow.From(album.Fields.First(s => s.Field == f), album, pending)).ToList();
+        FieldList.SelectedItem = null;
+        FieldList.SelectionChanged += OnFieldSelected;
+        CleanButton.IsEnabled = Pending.CleanJunk(album).Any(c => !pending.Contains(c));
+    }
+
+    private void OnFieldSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (FieldList.SelectedItem is not FieldRow { Field: { } field } || _album is not { } album) return;
+        EditBar.Tag = field;
+        EditLabel.Text = field.Name;
+        var pending = PendingHere.FirstOrDefault(c => c.Field == field);
+        EditBox.Text = pending is not null ? pending.To ?? "" : album.Fields.First(f => f.Field == field).Common ?? "";
+        EditApply.Content = $"Set on all {album.Tracks.Count} files";
+        EditBar.IsVisible = true;
+        EditBox.Focus();
+        EditBox.SelectAll();
+    }
+
+    private void OnEditKey(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key == Avalonia.Input.Key.Enter) { OnEditApply(sender, e); e.Handled = true; }
+        else if (e.Key == Avalonia.Input.Key.Escape) { OnEditCancel(sender, e); e.Handled = true; }
+    }
+
+    private void OnEditApply(object? sender, RoutedEventArgs e) => Edit(EditBox.Text);
+    private void OnEditRemove(object? sender, RoutedEventArgs e) => Edit(null);
+
+    private void OnEditCancel(object? sender, RoutedEventArgs e)
+    {
+        EditBar.IsVisible = false;
+        FieldList.SelectedItem = null;
+    }
+
+    private void Edit(string? value)
+    {
+        if (EditBar.Tag is not Field field || _album is not { } album) return;
+        AddPending(Pending.SetField(album, field, value), field);
+        EditBar.IsVisible = false;
+    }
+
+    private void OnCleanJunk(object? sender, RoutedEventArgs e)
+    {
+        if (_album is { } album) AddPending(Pending.CleanJunk(album));
+    }
+
+    /// Merges into this album's Pending. For a field, a value back to what the
+    /// files hold drops its earlier changes rather than adding new ones.
+    private void AddPending(IReadOnlyList<Change> changes, Field? field = null)
+    {
+        if (_album is not { } album) return;
+        var list = PendingHere;
+        if (field is not null) list = list.Where(c => c.Field != field).ToList();
+        list = Core.Pending.Merge(list, changes);
+        if (list.Count == 0) _pending.Remove(album.Folder);
+        else _pending[album.Folder] = list;
+        ResultBox.IsVisible = false;
+        ShowFields();
+        ShowPending();
+    }
+
+    private void ShowPending()
+    {
+        var list = PendingHere;
+        PendingCard.IsVisible = list.Count > 0;
+        if (list.Count == 0) return;
+        var files = list.Select(c => c.Path).Distinct().Count();
+        PendingTitle.Text = $"Pending: {list.Count} change{(list.Count == 1 ? "" : "s")} in {files} file{(files == 1 ? "" : "s")}";
+        int Count(ChangeKind k) => list.Count(c => c.Kind == k);
+        PendingAdds.Text = Count(ChangeKind.Add) is > 0 and var a ? $"+{a} add" : "";
+        PendingChanges.Text = Count(ChangeKind.Change) is > 0 and var c ? $"~{c} change" : "";
+        PendingRemoves.Text = Count(ChangeKind.Remove) is > 0 and var r ? $"−{r} remove" : "";
+        PendingNote.Text = _onShare ? "· on a network share: read only (spec §9.6)" : "· nothing written yet";
+        PendingNote.Foreground = _onShare ? Tones.BadText : Tones.Dim;
+        PendingList.ItemsSource = list.Select(ch => new PendingRow(ch)).ToList();
+        WriteButton.Content = $"Write {files} file{(files == 1 ? "" : "s")}";
+        WriteButton.IsEnabled = !_onShare;
+    }
+
+    private void OnDiscard(object? sender, RoutedEventArgs e)
+    {
+        if (_album is null) return;
+        _pending.Remove(_album.Folder);
+        ShowFields();
+        ShowPending();
+    }
+
+    private async void OnWrite(object? sender, RoutedEventArgs e)
+    {
+        if (_album is not { } album || PendingHere is not { Count: > 0 } changes || _onShare) return;
+        WriteButton.IsEnabled = false;
+        WriteButton.Content = "Writing…";
+        var (result, reread) = await Task.Run(() =>
+        {
+            var r = TagWriter.Write(changes);
+            return (r, AlbumReader.Read(album.Folder));
+        });
+
+        _pending.Remove(album.Folder);
+        ReplaceAlbum(reread);
+        ShowResult(result.Written > 0
+                ? $"Wrote {result.Written} file{(result.Written == 1 ? "" : "s")}. The originals are kept; Undo puts them back."
+                : "Nothing was written.",
+            result.Problems.Select(p => $"{p.File}: {p.Problem} (left as it was)"),
+            result.Problems.Count == 0 ? Tone.Clean : Tone.Missing);
+        UpdateUndo();
+    }
+
+    private async void OnUndo(object? sender, RoutedEventArgs e)
+    {
+        if (TagWriter.Latest() is not { } batch) return;
+        UndoButton.IsEnabled = false;
+        var (problems, reread) = await Task.Run(() =>
+        {
+            var p = TagWriter.Undo(batch);
+            return (p, Directory.Exists(batch.Folder) ? AlbumReader.Read(batch.Folder) : null);
+        });
+        if (reread is not null) ReplaceAlbum(reread);
+        ShowResult($"Undid the write of {batch.Time:HH:mm:ss}: {batch.Files.Count - problems.Count} of {batch.Files.Count} files back as they were.",
+            problems.Select(p => $"{p.File}: {p.Problem}"), problems.Count == 0 ? Tone.Clean : Tone.Missing);
+        UpdateUndo();
+    }
+
+    private void UpdateUndo()
+    {
+        var latest = TagWriter.Latest();
+        UndoButton.IsEnabled = latest is not null;
+        ToolTip.SetTip(UndoButton, latest is null ? null
+            : $"Undo the write of {latest.Time:yyyy-MM-dd HH:mm:ss}: {latest.Files.Count} file(s) in {Path.GetFileName(latest.Folder)}");
+    }
+
+    /// The album as read again after a write: its row is replaced and, if it
+    /// is the one on screen, shown again.
+    private void ReplaceAlbum(Album album)
+    {
+        var i = _albums.FindIndex(r => r.Album.Folder == album.Folder);
+        var row = new AlbumRow(album);
+        if (i >= 0) _albums[i] = row;
+        var showing = _album?.Folder == album.Folder;
+        Refilter();
+        if (showing) AlbumList.SelectedItem = row;
+    }
+
+    private void ShowResult(string title, IEnumerable<string> lines, Tone tone)
+    {
+        var (ink, fill) = Tones.Of(tone);
+        ResultBox.IsVisible = true;
+        ResultBox.Background = fill;
+        ResultBox.BorderBrush = ink;
+        ResultTitle.Text = title;
+        ResultTitle.Foreground = ink;
+        var text = string.Join("\n", lines);
+        ResultText.Text = text;
+        ResultText.IsVisible = text.Length > 0;
+        ResultText.Foreground = ink;
     }
 
     // ---- art ---------------------------------------------------------------
