@@ -43,12 +43,13 @@ public static class FieldMap
     public static readonly Field CatalogNumber = new("Catalog no.", "CATALOGNUMBER", "TXXX:CATALOGNUMBER", Itunes + "CATALOGNUMBER");
     public static readonly Field Barcode = new("Barcode", "BARCODE", "TXXX:BARCODE", Itunes + "BARCODE");
     public static readonly Field MusicBrainzRelease = new("MusicBrainz release", "MUSICBRAINZ_ALBUMID", "TXXX:MusicBrainz Album Id", Itunes + "MusicBrainz Album Id");
+    public static readonly Field MusicBrainzReleaseGroup = new("MusicBrainz release group", "MUSICBRAINZ_RELEASEGROUPID", "TXXX:MusicBrainz Release Group Id", Itunes + "MusicBrainz Release Group Id");
     public static readonly Field Lyrics = new("Lyrics", "LYRICS", "USLT", "©lyr");
 
     public static readonly IReadOnlyList<Field> All =
     [
         Title, Artist, Album, AlbumArtist, Track, Disc, Date, OriginalDate,
-        Genre, Label, CatalogNumber, Barcode, MusicBrainzRelease, Lyrics,
+        Genre, Label, CatalogNumber, Barcode, MusicBrainzRelease, MusicBrainzReleaseGroup, Lyrics,
     ];
 
     /// The Album fields table, in its order: what describes the album. Title,
@@ -57,7 +58,7 @@ public static class FieldMap
     public static readonly IReadOnlyList<Field> AlbumTable =
     [
         Album, AlbumArtist, Artist, Date, OriginalDate, Disc,
-        Genre, Label, CatalogNumber, Barcode, MusicBrainzRelease,
+        Genre, Label, CatalogNumber, Barcode, MusicBrainzRelease, MusicBrainzReleaseGroup,
     ];
 
     /// May rightly differ from track to track: a guest on one song.

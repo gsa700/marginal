@@ -30,12 +30,18 @@ public static class Pending
 {
     /// Sets `field` to `value` on every track of the album that does not
     /// already hold exactly that; an empty value removes the field.
-    public static IReadOnlyList<Change> SetField(Album album, Field field, string? value)
+    public static IReadOnlyList<Change> SetField(Album album, Field field, string? value) =>
+        SetField(album, field, _ => value);
+
+    /// Each track's own value (a lookup's titles and track numbers); null or
+    /// empty removes the field from that track.
+    public static IReadOnlyList<Change> SetField(Album album, Field field, Func<TrackFile, string?> valueOf)
     {
-        value = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         var changes = new List<Change>();
         foreach (var t in album.Tracks.Where(t => t.Problem is null))
         {
+            var value = valueOf(t);
+            value = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
             var now = t.Get(field);
             if (now == value) continue;
             var kind = now is null ? ChangeKind.Add : value is null ? ChangeKind.Remove : ChangeKind.Change;

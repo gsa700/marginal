@@ -152,6 +152,7 @@ public sealed partial class MainWindow : Window
         AlbumView.IsVisible = album is not null;
         ArtHint.IsVisible = album is null;
         ArtGrid.IsVisible = album is not null;
+        LookupButton.IsEnabled = album is not null;
         if (album is null)
         {
             ShowTrack(null);
@@ -181,6 +182,7 @@ public sealed partial class MainWindow : Window
 
         ValuesHeader.Text = $"VALUE ACROSS {album.Tracks.Count} FILES";
         _onShare = Library.IsOnNetworkShare(album.Folder);
+        LookupButton.IsEnabled = true;
         EditBar.IsVisible = false;
         ResultBox.IsVisible = false;
         ShowFields();
@@ -285,6 +287,14 @@ public sealed partial class MainWindow : Window
         if (EditBar.Tag is not Field field || _album is not { } album) return;
         AddPending(Pending.SetField(album, field, value), field);
         EditBar.IsVisible = false;
+    }
+
+    /// The lookup sheet; what he ticks there joins this album's Pending.
+    private async void OnLookup(object? sender, RoutedEventArgs e)
+    {
+        if (_album is not { } album) return;
+        var changes = await new LookupWindow(album).ShowDialog<List<Change>?>(this);
+        if (changes is { Count: > 0 } && _album?.Folder == album.Folder) AddPending(changes);
     }
 
     private void OnCleanJunk(object? sender, RoutedEventArgs e)

@@ -91,6 +91,13 @@ public sealed class WriterTests : IDisposable
     }
 
     [Fact]
+    public void Track_number_and_total_in_all_three_formats()
+    {
+        Write(Pending.SetField(Read(), FieldMap.Track, t => t.FileName[..2].TrimStart('0') + "/9"));
+        Assert.Equal(["1/9", "2/9", "3/9"], Read().Tracks.Select(t => t.Get(FieldMap.Track)));
+    }
+
+    [Fact]
     public void Removes_a_field()
     {
         var changes = Pending.SetField(Read(), FieldMap.Genre, "");

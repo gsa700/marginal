@@ -1,0 +1,227 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="using:Marginal.App"
+        x:Class="Marginal.App.LookupWindow"
+        x:DataType="app:LookupWindow"
+        Title="Look up on MusicBrainz"
+        Width="1180" Height="800" MinWidth="900" MinHeight="560"
+        Background="{DynamicResource Ground}"
+        WindowStartupLocation="CenterOwner">
+    <!-- The lookup sheet (spec §3.3): one screen, a status line instead of
+         wizard steps. Nothing is written from here: Add puts the chosen
+         changes into the album's Pending. -->
+    <Window.Styles>
+        <Style Selector="ListBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+        </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Selected}"/>
+        </Style>
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#F5F7FA"/>
+        </Style>
+        <Style Selector="ListBoxItem:selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+            <Setter Property="BorderThickness" Value="3,0,0,0"/>
+        </Style>
+        <Style Selector="Border.pill">
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Padding" Value="6,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource Panel}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Rule}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="ClipToBounds" Value="True"/>
+        </Style>
+        <Style Selector="Border.head">
+            <Setter Property="Background" Value="{DynamicResource Bar}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Rule}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Padding" Value="14,8"/>
+        </Style>
+        <Style Selector="TextBlock.th">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="LetterSpacing" Value="0.7"/>
+            <Setter Property="Foreground" Value="{DynamicResource Dim}"/>
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <!-- Header and status line. -->
+        <Border DockPanel.Dock="Top" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Rule}"
+                BorderThickness="0,0,0,1" Padding="18,12">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock x:Name="StatusDot" Classes="mono" Text="●" Foreground="{DynamicResource Dim}"/>
+                    <TextBlock x:Name="StatusText" Classes="mono soft"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="Look up on MusicBrainz" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="AlbumLine" Classes="dim" FontSize="12" VerticalAlignment="Center"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Search. -->
+        <Border DockPanel.Dock="Top" Background="{DynamicResource Bar}" BorderBrush="{DynamicResource Rule}"
+                BorderThickness="0,0,0,1" Padding="18,10">
+            <StackPanel Spacing="6">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Classes="tool" Content="Search" Margin="8,0,0,0" Click="OnSearch"/>
+                    <TextBlock DockPanel.Dock="Left" Text="Search" Classes="soft" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBox x:Name="QueryBox" FontFamily="{StaticResource Mono}" FontSize="12" Height="32"
+                             VerticalContentAlignment="Center" KeyDown="OnQueryKey"/>
+                </DockPanel>
+                <TextBlock Classes="mono dim" Text="from the tags: artist + album · or paste a MusicBrainz release link to go straight to it"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Footer. -->
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Rule}"
+                BorderThickness="0,1,0,0" Padding="18,12">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="tool" Content="Cancel" Click="OnCancel"/>
+                    <Button x:Name="AddButton" Classes="primary" Content="Add to Pending" IsEnabled="False" Click="OnAdd"/>
+                </StackPanel>
+                <TextBlock Classes="mono soft" VerticalAlignment="Center" Text="adds to Pending · nothing is written until Write"/>
+            </DockPanel>
+        </Border>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="380" MinWidth="280" MaxWidth="560"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*" MinWidth="480"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Releases. -->
+            <Border Grid.Column="0" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Rule}" BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="16,14,16,10">
+                        <TextBlock x:Name="OrderNote" DockPanel.Dock="Right" Classes="mono dim" Text="best fit first"/>
+                        <TextBlock x:Name="ReleasesLabel" Classes="label" Text="RELEASES"/>
+                    </DockPanel>
+                    <ListBox x:Name="ReleaseList" SelectionChanged="OnReleaseSelected">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="app:CandidateRow">
+                                <StackPanel Margin="16,9" Spacing="3">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Classes="mono" FontSize="12" FontWeight="Medium"
+                                                   Foreground="{Binding FitInk}" Text="{Binding FitText}"/>
+                                        <TextBlock Text="{Binding Title}" FontWeight="Medium" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+                                    </DockPanel>
+                                    <TextBlock Classes="soft" FontSize="12" Text="{Binding Line}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Classes="mono dim" Text="{Binding Codes}" TextTrimming="CharacterEllipsis"/>
+                                    <WrapPanel>
+                                        <Border Classes="pill" Background="{Binding TracksFill}" Margin="0,2,6,0">
+                                            <TextBlock Classes="mono" Foreground="{Binding TracksInk}" Text="{Binding TracksText}"/>
+                                        </Border>
+                                        <Border Classes="pill" Background="#E6F4EA" Margin="0,2,6,0" IsVisible="{Binding Candidate.Tagged}">
+                                            <TextBlock Classes="mono" Foreground="#1E6B34" Text="your files' release"/>
+                                        </Border>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="5" Background="Transparent" ResizeDirection="Columns"/>
+
+            <!-- The chosen release. -->
+            <ScrollViewer Grid.Column="2" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="18,16" Spacing="14">
+                    <TextBlock x:Name="PickHint" Classes="dim" Text="Pick a release on the left."/>
+                    <StackPanel x:Name="ReleaseView" Spacing="14" IsVisible="False">
+                        <DockPanel>
+                            <TextBlock x:Name="ReleaseArt" DockPanel.Dock="Right" Classes="mono" VerticalAlignment="Bottom"/>
+                            <StackPanel Spacing="2">
+                                <TextBlock x:Name="ReleaseTitle" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="ReleaseCodes" Classes="mono soft"/>
+                            </StackPanel>
+                        </DockPanel>
+
+                        <!-- Pairing. -->
+                        <Border Classes="card">
+                            <StackPanel>
+                                <Border Classes="head">
+                                    <Grid ColumnDefinitions="*,*,58,58,150">
+                                        <TextBlock Classes="th" Text="YOUR FILE"/>
+                                        <TextBlock Grid.Column="1" Classes="th" Text="MUSICBRAINZ TRACK"/>
+                                        <TextBlock Grid.Column="2" Classes="th" Text="YOURS" HorizontalAlignment="Right" Margin="0,0,10,0"/>
+                                        <TextBlock Grid.Column="3" Classes="th" Text="THEIRS" HorizontalAlignment="Right" Margin="0,0,10,0"/>
+                                        <TextBlock Grid.Column="4" Classes="th" Text="FIT"/>
+                                    </Grid>
+                                </Border>
+                                <ItemsControl x:Name="PairList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="app:PairRow">
+                                            <Border BorderBrush="{DynamicResource RowRule}" BorderThickness="0,0,0,1" Padding="14,6">
+                                                <Grid ColumnDefinitions="*,*,58,58,150">
+                                                    <TextBlock Classes="mono soft" Text="{Binding File}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Track}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <TextBlock Grid.Column="2" Classes="mono soft" FontSize="12" Text="{Binding Yours}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <TextBlock Grid.Column="3" Classes="mono soft" FontSize="12" Text="{Binding Theirs}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <Border Grid.Column="4" Classes="pill" Background="{Binding Fill}" HorizontalAlignment="Left">
+                                                        <TextBlock Classes="mono" Foreground="{Binding Ink}" Text="{Binding Fit}"/>
+                                                    </Border>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- What to take. -->
+                        <Border Classes="card">
+                            <StackPanel>
+                                <Border Classes="head" Padding="14,10">
+                                    <DockPanel>
+                                        <TextBlock x:Name="TakeSummary" DockPanel.Dock="Right" Classes="mono"/>
+                                        <TextBlock Text="What to take from this release" FontWeight="SemiBold"/>
+                                    </DockPanel>
+                                </Border>
+                                <ItemsControl x:Name="TakeList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="app:TakeRow">
+                                            <Border BorderBrush="{DynamicResource RowRule}" BorderThickness="0,0,0,1">
+                                              <Border BorderBrush="{Binding Edge}" BorderThickness="3,0,0,0" Padding="11,5,14,5">
+                                                <Grid ColumnDefinitions="30,190,*,*,96">
+                                                    <CheckBox IsChecked="{Binding On}" IsEnabled="{Binding HasChanges}" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1" Classes="soft" Text="{Binding Label}" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="2" Classes="mono dim" FontSize="12" Text="{Binding Now}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <TextBlock Grid.Column="3" Classes="mono" FontSize="12" Text="{Binding Theirs}" Foreground="{Binding Ink}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <Border Grid.Column="4" Classes="pill" Background="{Binding Fill}" HorizontalAlignment="Left">
+                                                        <TextBlock Classes="mono" Foreground="{Binding Ink}" Text="{Binding KindText}"/>
+                                                    </Border>
+                                                </Grid>
+                                              </Border>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <StackPanel Margin="14,10" Spacing="4">
+                                    <TextBlock Text="Year" FontSize="12" FontWeight="Medium"/>
+                                    <RadioButton x:Name="FirstReleaseRadio" GroupName="year" IsChecked="True" FontSize="12" Click="OnYearChanged"/>
+                                    <RadioButton x:Name="PressingRadio" GroupName="year" FontSize="12" Click="OnYearChanged"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</Window>

@@ -28,7 +28,12 @@ What comes next, in order. The spec is `docs/spec.md`.
    the like) across the library, every album and change shown first. Backups
    are whole files and add up (two test writes: 364 MB): keep them for a set
    time, show their size, an "Empty backups" button. MP4 junk atoms too.
-3. **MusicBrainz lookup.** Search from tags, link, disc ID from `.toc`/`.cue`;
+3. **MusicBrainz lookup.** *Done 2026-10-31 but for disc IDs and
+   per-recording IDs (later): search, pasted links, the files' own release
+   first, ranking (every release scores 100, so: tagged, track count, CD
+   and digital, score), pairing with lengths, the checklist (Label unticked;
+   nothing ticked when the fit is under 90%), first-release or pressing
+   year. Tried by Dave on copies.* Search from tags, link, disc ID from `.toc`/`.cue`;
    release ranking; track pairing; what-to-take checklist into Pending.
 4. **Art picker.** Cover Art Archive candidates, file/drop/paste, crop and
    resize, save and embed, into Pending.

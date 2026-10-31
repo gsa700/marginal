@@ -180,12 +180,13 @@ public static class TagWriter
             case AudioFormat.Flac:
             {
                 var xiph = (TagLib.Ogg.XiphComment)file.GetTag(TagLib.TagTypes.Xiph, true);
-                if (field == FieldMap.Disc)
+                if (field == FieldMap.Disc || field == FieldMap.Track)
                 {
+                    var disc = field == FieldMap.Disc;
                     var (n, total) = SplitPair(value);
-                    xiph.SetField("DISCNUMBER", n is null ? [] : [n]);
-                    xiph.SetField("DISCTOTAL", total is null ? [] : [total]);
-                    xiph.RemoveField("TOTALDISCS");
+                    xiph.SetField(disc ? "DISCNUMBER" : "TRACKNUMBER", n is null ? [] : [n]);
+                    xiph.SetField(disc ? "DISCTOTAL" : "TRACKTOTAL", total is null ? [] : [total]);
+                    xiph.RemoveField(disc ? "TOTALDISCS" : "TOTALTRACKS");
                     return;
                 }
                 xiph.SetField(field.Flac, value is null ? [] : [value]);
@@ -218,6 +219,13 @@ public static class TagWriter
                     var (n, total) = SplitPair(value);
                     apple.Disc = uint.TryParse(n, out var d) ? d : 0;
                     apple.DiscCount = uint.TryParse(total, out var dc) ? dc : 0;
+                    return;
+                }
+                if (field == FieldMap.Track)
+                {
+                    var (n, total) = SplitPair(value);
+                    apple.Track = uint.TryParse(n, out var t) ? t : 0;
+                    apple.TrackCount = uint.TryParse(total, out var tc) ? tc : 0;
                     return;
                 }
                 const string itunes = "----:com.apple.iTunes:";
@@ -315,6 +323,7 @@ public static class TagWriter
         if (c.Field == FieldMap.Date) { yield return "TYER"; yield return "TDAT"; yield return "TIME"; yield return "TDRC"; }
         if (c.Field == FieldMap.OriginalDate) { yield return "TORY"; yield return "TDOR"; }
         if (c.Field == FieldMap.Disc) { yield return "DISCNUMBER"; yield return "DISCTOTAL"; yield return "TOTALDISCS"; yield return "disk"; }
+        if (c.Field == FieldMap.Track) { yield return "TRACKNUMBER"; yield return "TRACKTOTAL"; yield return "TOTALTRACKS"; yield return "trkn"; }
     }
 
     /// SHA-256 of the audio: the bytes no tag covers. FLAC: everything after
