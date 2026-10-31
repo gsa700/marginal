@@ -155,6 +155,13 @@ public static class TagWriter
                 using (var file = TrackReader.Open(temp))
                 {
                     foreach (var c in group) Apply(file, before, c);
+                    // TagLib# gives every MP3 an ID3v1 tag (and may an APE one) in
+                    // memory when it opens it, and saving wrote them: a Label
+                    // change put ID3v1 on files that had none (1,212 of Dave's
+                    // lossy MP3s, 2026-10-31). A file keeps the kinds of tag it
+                    // had, unless a change removes one.
+                    if (!before.HasId3v1) file.RemoveTags(TagLib.TagTypes.Id3v1);
+                    if (!before.HasApe) file.RemoveTags(TagLib.TagTypes.Ape);
                     file.Save();
                 }
 
@@ -831,6 +838,8 @@ public static class TagWriter
             if (!same) return $"{c.Field!.Name} reads back as \"{after.Get(c.Field!)}\", not \"{c.To}\"";
         }
         if (changes.Any(c => c is { Op: ChangeOp.RemoveTag, Key: "ID3v1" }) && after.HasId3v1) return "the ID3v1 tag is still there";
+        if (!before.HasId3v1 && after.HasId3v1) return "an ID3v1 tag appeared that the file did not have";
+        if (!before.HasApe && after.HasApe) return "an APE tag appeared that the file did not have";
         if (changes.Any(c => c is { Op: ChangeOp.RemoveTag, Key: "APE" }) && after.HasApe) return "the APE tag is still there";
         foreach (var c in changes.Where(c => c.Op == ChangeOp.RemoveFrame))
             if (after.Raw.Any(r => r.Key == c.Key && (before.Format == AudioFormat.M4a || r.Value == c.From)))

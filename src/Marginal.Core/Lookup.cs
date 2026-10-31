@@ -67,6 +67,26 @@ public static partial class Lookup
         return m.Success ? m.Value.ToLowerInvariant() : null;
     }
 
+    /// The release a search found for an album, when it is surely that album:
+    /// the best-ranked candidate has its title and artist (letters and digits
+    /// compared, case aside) and as many tracks as the folder has files.
+    public static bool IsClearMatch(ReleaseCandidate c, Album album) =>
+        c.Tracks == album.Tracks.Count
+        && SameTitle(c.Title, album.Title, album.Artist)
+        && string.Equals(Plain(c.Artist), Plain(album.Artist), StringComparison.OrdinalIgnoreCase);
+
+    /// The same title, or the same with the artist's name in front:
+    /// "Aerosmith's Greatest Hits" is the files' "Greatest Hits" (Dave's
+    /// lossy library, 2026-10-31).
+    private static bool SameTitle(string theirs, string ours, string artist)
+    {
+        var (t, o, a) = (Plain(theirs).ToLowerInvariant(), Plain(ours).ToLowerInvariant(), Plain(artist).ToLowerInvariant());
+        if (t == o) return true;
+        foreach (var prefix in new[] { a + "s", a })
+            if (a.Length > 0 && t.StartsWith(prefix, StringComparison.Ordinal) && t[prefix.Length..] == o) return true;
+        return false;
+    }
+
     public static IReadOnlyList<ReleaseCandidate> Candidates(JsonElement search, Album album)
     {
         var tagged = album.Fields.First(f => f.Field == FieldMap.MusicBrainzRelease).Common;

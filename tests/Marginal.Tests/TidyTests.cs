@@ -184,3 +184,51 @@ public sealed class TidyTests : IDisposable
         Assert.Contains(album.Checks, c => c.Text == "3 of 5 tracks");
     }
 }
+
+public sealed class ArtSearchTests
+{
+    private static Album Fixture() =>
+        AlbumReader.Read(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Fixture Band - Test Album"));
+
+    private static ReleaseCandidate Candidate(string title, string artist, int tracks) =>
+        new("b84ee12a-09ef-421b-82de-0441a926375b", title, artist, "1976", "US", "CD", tracks, "", "", "", 100, false);
+
+    [Fact]
+    public void A_search_result_is_a_clear_match_only_with_title_artist_and_track_count()
+    {
+        var album = Fixture();
+        Assert.True(Lookup.IsClearMatch(Candidate("Test Album", "Fixture Band", 3), album));
+        Assert.True(Lookup.IsClearMatch(Candidate("test album!", "FIXTURE BAND", 3), album));   // letters and digits, case aside
+        Assert.False(Lookup.IsClearMatch(Candidate("Test Album", "Fixture Band", 12), album));
+        Assert.False(Lookup.IsClearMatch(Candidate("Test Album (Deluxe)", "Fixture Band", 3), album));
+        Assert.False(Lookup.IsClearMatch(Candidate("Test Album", "Someone Else", 3), album));
+        Assert.True(Lookup.IsClearMatch(Candidate("Fixture Band's Test Album", "Fixture Band", 3), album));
+        Assert.False(Lookup.IsClearMatch(Candidate("Fixture Band's Other Album", "Fixture Band", 3), album));
+    }
+}
+
+public sealed class TagKindTests : IDisposable
+{
+    private readonly string _root = Directory.CreateTempSubdirectory("marginal-v1-").FullName;
+    public void Dispose() { try { Directory.Delete(_root, recursive: true); } catch (IOException) { } }
+
+    [Fact]
+    public void A_write_never_adds_an_ID3v1_tag_the_file_did_not_have()
+    {
+        // TagLib# gives every MP3 an ID3v1 tag in memory; a Label change wrote
+        // it to 1,212 of Dave's files (0.1.2's Debug build, 2026-10-31).
+        var album = Path.Combine(_root, "Album");
+        Directory.CreateDirectory(album);
+        var fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "Fixture Band - Test Album");
+        foreach (var f in Directory.GetFiles(fixture)) File.Copy(f, Path.Combine(album, Path.GetFileName(f)));
+        var backups = Path.Combine(_root, "backups");
+        Assert.Empty(TagWriter.Write(Pending.CleanJunk(AlbumReader.Read(album)), backups).Problems);
+        Assert.DoesNotContain(AlbumReader.Read(album).Tracks, t => t.HasId3v1);
+
+        Assert.Empty(TagWriter.Write(Pending.SetField(AlbumReader.Read(album), FieldMap.Label, "Vertigo"), backups).Problems);
+        Assert.Empty(TagWriter.Write(Pending.SetField(AlbumReader.Read(album), FieldMap.Date, "1976"), backups).Problems);
+        var cover = File.ReadAllBytes(Path.Combine(album, "cover.jpg"));
+        Assert.Empty(TagWriter.Write(Pending.EmbedFront(AlbumReader.Read(album), cover), backups).Problems);
+        Assert.DoesNotContain(AlbumReader.Read(album).Tracks, t => t.HasId3v1 || t.HasApe);
+    }
+}

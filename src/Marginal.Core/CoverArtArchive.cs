@@ -43,7 +43,7 @@ public static class CoverArtArchive
     /// indexes four at a time. The error, if any, says what failed.
     public static async Task<string?> CandidatesAsync(
         HttpClient http, MusicBrainzClient mb, string? releaseId, Task<string?> releaseGroupId, bool otherEditions,
-        Action<IReadOnlyList<ArtCandidate>> found, CancellationToken ct = default)
+        Action<IReadOnlyList<ArtCandidate>> found, CancellationToken ct = default, string ownLabel = "your release")
     {
         string? error = null;
         // The release group may still be on its way (asked of MusicBrainz when
@@ -53,7 +53,7 @@ public static class CoverArtArchive
         if (releaseId is not null && WebLimits.IsMbid(releaseId))
         {
             var (own, ownError) = await IndexAsync(http, releaseId, ct);
-            if (own is not null) found(Parse(own.Value, releaseId, "your release", ours: true));
+            if (own is not null) found(Parse(own.Value, releaseId, ownLabel, ours: true));
             error = ownError is null ? null : $"Cover Art Archive: {ownError}";
         }
         if (browsing is null) return error;

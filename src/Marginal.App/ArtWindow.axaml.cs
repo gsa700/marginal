@@ -75,13 +75,49 @@ public sealed partial class ArtWindow : Window
         var group = _album.Fields.First(f => f.Field == FieldMap.MusicBrainzReleaseGroup).Common;
         _rows = _rows.Where(r => r.Local is not null).ToList();
         ShowSlot();
+        // No release in the tags: MusicBrainz is searched for the album, as
+        // Look up does, and the best-ranked release is asked about (Dave,
+        // 2026-10-31: the picker was all but useless without the IDs).
+        _searched = false;
         if (release is null || !WebLimits.IsMbid(release))
         {
-            NoneText.Text = "These files carry no MusicBrainz release, so the archive cannot be asked. "
-                            + "Look up on MusicBrainz first, or use From a file… (or drop one here).";
+            Busy($"No MusicBrainz release in the tags: searching MusicBrainz for {_album.Artist} — {_album.Title}…");
+            Status("searching MusicBrainz…", Tones.Dim);
+            ReleaseCandidate? best;
+            try
+            {
+                using var search = await _mb.SearchReleasesAsync(Lookup.Query(_album), 25, _closing.Token);
+                best = search is null ? null : Lookup.Candidates(search.RootElement, _album).FirstOrDefault();
+            }
+            catch (OperationCanceledException) { return; }
+            catch (Exception ex)
+            {
+                Busy(null);
+                Status($"MusicBrainz: {ex.Message}", Tones.BadText);
+                return;
+            }
+            if (ticket != _loading) return;
+            if (best is null || !WebLimits.IsMbid(best.Id))
+            {
+                Busy(null);
+                NoneText.Text = "These files carry no MusicBrainz release, and a search for this album found none. "
+                                + "Look up on MusicBrainz to find it by hand (a pasted link works), or use From a file… (or drop one here).";
+                NoneText.IsVisible = true;
+                Status("MusicBrainz found no release for this album", Tones.WarnText);
+                return;
+            }
+            release = best.Id;
+            group = null;
+            _searched = true;
+            _found = best;
+            var clear = Lookup.IsClearMatch(best, _album);
+            NoneText.Text = clear
+                ? $"Found by search: {best.Title} by {best.Artist}, {best.Line}, {best.Tracks} tracks, the same as these files."
+                : $"Found by search, not a sure match: {best.Title} by {best.Artist}, {best.Line}, {best.Tracks} tracks for {_album.Tracks.Count} files. "
+                  + "Check the images, or Look up on MusicBrainz to choose the release.";
             NoneText.IsVisible = true;
-            Status("no MusicBrainz release in the tags", Tones.WarnText);
-            return;
+            TakeIdsBox.Content = $"Also take its MusicBrainz IDs ({best.Title}, {best.Line})";
+            TakeIdsBox.IsVisible = clear;
         }
         Status("asking the Cover Art Archive…", Tones.Dim);
         Busy(OtherEditions.IsChecked == true
@@ -92,9 +128,13 @@ public sealed partial class ArtWindow : Window
             // The release group, for other editions: from the tags, or asked of
             // MusicBrainz alongside the archive.
             var others = OtherEditions.IsChecked == true;
-            var groupTask = group is not null || !others ? Task.FromResult(group) : GroupOf(release);
+            // A release found by search needs its group for the IDs to take, even
+            // when other editions are not asked about.
+            var groupTask = group is not null || (!others && !_searched) ? Task.FromResult(group) : GroupOf(release);
             var error = await CoverArtArchive.CandidatesAsync(_http, _mb, release, groupTask, others,
-                found => Dispatcher.UIThread.Post(() => Arrived(ticket, found)), _closing.Token);
+                found => Dispatcher.UIThread.Post(() => Arrived(ticket, found)), _closing.Token,
+                ownLabel: _searched ? "best match by search" : "your release");
+            if (_searched) _foundGroup = await groupTask;
             if (ticket != _loading) return;
             Busy(null);
             var releases = _rows.Where(r => r.Local is null).Select(r => r.Candidate.ReleaseId).Distinct().Count();
@@ -156,6 +196,11 @@ public sealed partial class ArtWindow : Window
         catch (Exception) { return null; }
     }
 
+    /// The release a search found, when the files carry none, and its group.
+    private bool _searched;
+    private ReleaseCandidate? _found;
+    private string? _foundGroup;
+
     private async Task<string?> GroupOf(string release)
     {
         using var doc = await _mb.GetReleaseAsync(release, _closing.Token);
@@ -177,7 +222,7 @@ public sealed partial class ArtWindow : Window
         Status($"{_rows.Count} image{(_rows.Count == 1 ? "" : "s")} so far…", Tones.Dim);
         var editions = _rows.Where(r => r.Local is null && !r.Candidate.Ours).Select(r => r.Candidate.ReleaseId).Distinct().Count();
         if (BusyBar.IsVisible)
-            Busy(editions == 0 ? "Your release's art is in. Asking about other editions of the album…"
+            Busy(editions == 0 ? (_searched ? "The best match's art is in. Asking about other editions of the album…" : "Your release's art is in. Asking about other editions of the album…")
                                : $"Found art from {editions} other edition{(editions == 1 ? "" : "s")} so far. Still asking…");
         _ = LoadThumbnails(rows);
         foreach (var c in found.Where(c => c.Ours && c.Slot != ArtSlot.Booklet)) Full(c.Image);
@@ -269,7 +314,7 @@ public sealed partial class ArtWindow : Window
             PreviewWait.Text = error is null ? "the archive has no such image now" : $"the archive failed: {error}";
             return;
         }
-        Pick(bytes, row.Candidate.Ours ? "this pressing" : $"other edition: {row.Candidate.Edition}");
+        Pick(bytes, row.Candidate.Ours ? (row.Candidate.Edition.StartsWith("best match") ? "best match by search" : "this pressing") : $"other edition: {row.Candidate.Edition}");
     }
 
     private async void OnFromFile(object? sender, RoutedEventArgs e)
@@ -363,6 +408,12 @@ public sealed partial class ArtWindow : Window
         var same = SafeFiles.Read(existing, WebLimits.MaxImageBytes) is { } now && now.AsSpan().SequenceEqual(made);
         if (SaveBox.IsChecked == true && !same) list.Add(Pending.SaveImage(_album, name, made));
         if (Slot == ArtSlot.Front && EmbedBox.IsChecked == true) list.AddRange(Pending.EmbedFront(_album, made));
+        // The IDs of the release a search surely found, with the art.
+        if (list.Count > 0 && TakeIdsBox.IsVisible && TakeIdsBox.IsChecked == true && _found is { } found)
+        {
+            list.AddRange(Pending.SetField(_album, FieldMap.MusicBrainzRelease, found.Id));
+            if (_foundGroup is { } g) list.AddRange(Pending.SetField(_album, FieldMap.MusicBrainzReleaseGroup, g));
+        }
         return list;
     }
 
@@ -409,7 +460,7 @@ public sealed class ArtRow(ArtCandidate candidate, byte[]? local = null, string?
     public string Edition => Candidate.Edition;
     public string What => Local is { } b ? Pending.Describe(b)
         : Candidate.Slot == ArtSlot.Booklet ? $"booklet page {Candidate.Page}" : Candidate.Slot.ToString().ToLowerInvariant();
-    public string Source => Where ?? (Candidate.Ours ? "this pressing" : "other edition");
+    public string Source => Where ?? (Candidate.Ours ? (Candidate.Edition.StartsWith("best match") ? "best match" : "this pressing") : "other edition");
     public IBrush SourceInk => Local is not null ? Tones.NoteText : Candidate.Ours ? Tones.OkText : Tones.WarnText;
     public IBrush SourceFill => Local is not null ? Tones.NoteFill : Candidate.Ours ? Tones.OkFill : Tones.WarnFill;
 

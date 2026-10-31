@@ -94,6 +94,9 @@
                     <Button Classes="tool" Content="Cancel" Click="OnCancel"/>
                     <Button x:Name="AddButton" Classes="primary" Content="Add to Pending" IsEnabled="False" Click="OnAdd"/>
                 </StackPanel>
+                <!-- Shown when the files carry no release and a search found this
+                     album surely: its IDs can go into Pending with the art. -->
+                <CheckBox x:Name="TakeIdsBox" DockPanel.Dock="Left" IsVisible="False" IsChecked="True" FontSize="12" Margin="0,0,16,0" Click="OnOption"/>
                 <TextBlock Classes="mono soft" VerticalAlignment="Center" Text="adds to Pending · the old image, if any, is kept in the backup"/>
             </DockPanel>
         </Border>
