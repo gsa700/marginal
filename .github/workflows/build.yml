@@ -1,0 +1,122 @@
+# Marginal on its three platforms: build, test, and the Native AOT build of the
+# app on each system's own runner (AOT cannot build for another system), as in
+# Deadwax and AlbumWall.
+name: Build
+
+on:
+  push:
+    branches: [main]
+    paths: ["src/**", "tests/**", "Marginal.slnx", "Directory.Build.props", ".github/workflows/build.yml"]
+  pull_request:
+    paths: ["src/**", "tests/**", "Marginal.slnx", "Directory.Build.props", ".github/workflows/build.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 22.04, not latest: a Native AOT program needs the glibc of the
+          # machine that built it, so the oldest runner keeps Ubuntu 22.04,
+          # Debian 12 and RHEL 9 able to run it. The AOT step checks the floor.
+          - os: ubuntu-22.04
+            rid: linux-x64
+          - os: windows-latest
+            rid: win-x64
+          - os: macos-15
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build Marginal.slnx -c Release -nologo -v quiet
+
+      - name: Test
+        run: dotnet test tests/Marginal.Tests -c Release --no-build -nologo -v quiet --logger "console;verbosity=normal"
+
+      # clang and zlib for the AOT link; Xvfb, a display for the smoke test.
+      - name: Native AOT tools (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y -q clang zlib1g-dev xvfb
+
+      # Fails on any trim or AOT warning (IL2xxx/IL3xxx) but TagLibSharp's own
+      # (IL2104), as AlbumWall's: that assembly is kept whole
+      # (TrimmerRootAssembly), and its warnings are its analysis, not code we
+      # lose. Anything else may break only in the compiled build.
+      - name: Publish ${{ matrix.rid }} Native AOT
+        shell: bash
+        run: |
+          dotnet publish src/Marginal.App -c Release -r ${{ matrix.rid }} -p:PublishAot=true -o out-aot -nologo -v minimal 2>&1 | tee aot.log
+          test "${PIPESTATUS[0]}" -eq 0
+          if grep -E "warning IL[0-9]+" aot.log | grep -v "IL2104: Assembly 'TagLibSharp'"; then echo "trim/AOT warnings above"; exit 1; fi
+          ls -la out-aot
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            for f in out-aot/Marginal out-aot/*.so; do
+              floor=$(objdump -T "$f" | grep -oE 'GLIBC_2\.[0-9]+' | sort -t. -k2 -n -u | tail -1)
+              echo "glibc floor of $(basename "$f"): $floor"
+              [ "${floor#GLIBC_2.}" -le 35 ] || { echo "$(basename "$f") needs $floor; Ubuntu 22.04 has 2.35"; exit 1; }
+            done
+          fi
+
+      # Alive after ten seconds = the compiled program, Avalonia and its native
+      # libraries all loaded and the window up. The timer's exit code is the pass.
+      - name: Smoke test Native AOT (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set +e
+          perl -e 'alarm 10; exec @ARGV' ./out-aot/Marginal > smoke-aot.log 2>&1
+          rc=$?
+          set -e
+          echo "exit code $rc (124, 137 or 142 = killed by the timer = alive = pass)"
+          cat smoke-aot.log
+          test "$rc" -eq 142 -o "$rc" -eq 124 -o "$rc" -eq 137
+
+      - name: Smoke test Native AOT (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # No Wayland here: under Xvfb Avalonia takes X11.
+          set +e
+          xvfb-run -a perl -e 'alarm 10; exec @ARGV' ./out-aot/Marginal > smoke-aot.log 2>&1
+          rc=$?
+          set -e
+          echo "exit code $rc (124, 137 or 142 = killed by the timer = alive = pass)"
+          cat smoke-aot.log
+          test "$rc" -eq 142 -o "$rc" -eq 124 -o "$rc" -eq 137
+
+      - name: Smoke test Native AOT (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath .\out-aot\Marginal.exe -PassThru
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) { Write-Host "exited early with $($p.ExitCode)"; exit 1 }
+          Write-Host "alive after ten seconds = pass"
+          Stop-Process -Id $p.Id -Force
+
+      - name: Package Native AOT
+        shell: bash
+        run: |
+          rm -rf out-aot/*.pdb out-aot/*.dbg out-aot/*.dSYM
+          cd out-aot
+          if [ "${{ runner.os }}" = "Windows" ]; then 7z a -bd ../Marginal-aot-${{ matrix.rid }}.zip . >/dev/null; else zip -9 -q -r ../Marginal-aot-${{ matrix.rid }}.zip .; fi
+          cd ..
+          ls -la Marginal-aot-${{ matrix.rid }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Marginal-aot-${{ matrix.rid }}
+          path: |
+            Marginal-aot-${{ matrix.rid }}.zip
+            smoke-aot.log
+          if-no-files-found: ignore
+          retention-days: 30

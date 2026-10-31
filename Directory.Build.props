@@ -1,0 +1,7 @@
+<Project>
+  <!-- One version for every project, as in Deadwax. Bump it here, in a commit
+       of its own, before a release. -->
+  <PropertyGroup>
+    <Version>0.0.1</Version>
+  </PropertyGroup>
+</Project>

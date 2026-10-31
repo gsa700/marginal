@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- The executable is the product's name, as everywhere in the family. -->
+    <AssemblyName>Marginal</AssemblyName>
+    <RootNamespace>Marginal.App</RootNamespace>
+    <Nullable>enable</Nullable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- No DOTNET_STARTUP_HOOKS: it runs managed code from any assembly named
+         in the environment inside this process (Deadwax security review
+         2026-10-24, M1). -->
+    <StartupHookSupport>false</StartupHookSupport>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <!-- The same Avalonia as AlbumWall and Deadwax; one upgrade covers all three. -->
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Wayland" Version="12.1.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Marginal.Core\Marginal.Core.csproj" />
+  </ItemGroup>
+
+  <!-- TagLibSharp whole, in a trimmed or Native AOT build: it constructs the
+       class for a file by reflection, and trimmed it reads nothing (AlbumWall's
+       trial AOT build, 2026-10-27, indexed every file as unreadable). -->
+  <ItemGroup>
+    <TrimmerRootAssembly Include="TagLibSharp" />
+  </ItemGroup>
+</Project>

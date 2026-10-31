@@ -1,0 +1,94 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Marginal.App.App"
+             RequestedThemeVariant="Light">
+    <!-- The clean room (spec §8), from the mockups of 2026-10-31: light and
+         technical, unlike the family's dark. A cool neutral ground, one blue
+         accent for the primary action and the selection, and the status
+         colours, each always paired with a word or sign (spec §2). -->
+    <Application.Resources>
+        <SolidColorBrush x:Key="Desk" Color="#EEF0F3"/>
+        <SolidColorBrush x:Key="Ground" Color="#F7F8FA"/>
+        <SolidColorBrush x:Key="Panel" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="Bar" Color="#FBFBFC"/>
+        <SolidColorBrush x:Key="Rule" Color="#D9DDE3"/>
+        <SolidColorBrush x:Key="RowRule" Color="#EEF0F3"/>
+        <SolidColorBrush x:Key="Edge" Color="#C9CED6"/>
+        <SolidColorBrush x:Key="Text" Color="#1B1F24"/>
+        <SolidColorBrush x:Key="Soft" Color="#3D454E"/>
+        <SolidColorBrush x:Key="Dim" Color="#59636E"/>
+        <SolidColorBrush x:Key="Accent" Color="#0B5CBF"/>
+        <SolidColorBrush x:Key="Selected" Color="#F2F7FD"/>
+        <!-- Status: + add / clean, ~ change / fixable, − remove / missing. -->
+        <SolidColorBrush x:Key="OkText" Color="#1E6B34"/>
+        <SolidColorBrush x:Key="OkFill" Color="#E6F4EA"/>
+        <SolidColorBrush x:Key="WarnText" Color="#8A4B00"/>
+        <SolidColorBrush x:Key="WarnFill" Color="#FFF1DC"/>
+        <SolidColorBrush x:Key="BadText" Color="#A4231A"/>
+        <SolidColorBrush x:Key="BadFill" Color="#FDECEA"/>
+        <!-- JetBrains Mono when installed, else each system's own mono. -->
+        <FontFamily x:Key="Mono">JetBrains Mono, Menlo, Consolas, DejaVu Sans Mono, monospace</FontFamily>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+
+        <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="TextBlock.dim">
+            <Setter Property="Foreground" Value="{DynamicResource Dim}"/>
+        </Style>
+        <Style Selector="TextBlock.soft">
+            <Setter Property="Foreground" Value="{DynamicResource Soft}"/>
+        </Style>
+        <Style Selector="TextBlock.mono">
+            <Setter Property="FontFamily" Value="{StaticResource Mono}"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <!-- Small uppercase section labels: LIBRARY, ART. -->
+        <Style Selector="TextBlock.label">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="LetterSpacing" Value="0.7"/>
+            <Setter Property="Foreground" Value="{DynamicResource Dim}"/>
+        </Style>
+
+        <!-- Toolbar and panel buttons: white, a thin edge, 32 high. -->
+        <Style Selector="Button.tool">
+            <Setter Property="Background" Value="{DynamicResource Panel}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Edge}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+        </Style>
+        <Style Selector="Button.tool:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Bar}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Dim}"/>
+        </Style>
+        <!-- The one blue button: Write. -->
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource Accent}"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#08468F"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+        </Style>
+        <Style Selector="Button.primary:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="#C9CED6"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+        </Style>
+    </Application.Styles>
+</Application>
