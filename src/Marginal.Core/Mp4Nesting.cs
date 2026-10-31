@@ -1,4 +1,5 @@
 // Marginal — a look at an MP4 file's box nesting before TagLib# reads it.
+// COPIED to AlbumWall (src/AlbumWall.Domain/Mp4Nesting.cs): a fix in one goes to the other.
 //
 // TagLib# 2.3.0 follows nested boxes by recursion with no limit, so a 24 KB
 // .m4a nested 3,000 deep overflowed the stack and took the app down while the
