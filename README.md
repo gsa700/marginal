@@ -95,8 +95,7 @@ It will not update while edits are waiting in Pending.
 There are two channels. **Edge** gets every build as it is released (GitHub
 pre-releases); **Stable**, the default, gets a build once it has run on Edge
 without trouble and been promoted, the same binary with its pre-release flag
-cleared. *0.1.0 is on Edge for now:* until Stable has a release, tick Edge in
-Preferences > Updates to be offered the next one.
+cleared.
 
 ### Install
 
