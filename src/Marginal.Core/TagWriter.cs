@@ -95,14 +95,14 @@ public static class TagWriter
         Directory.CreateDirectory(batchFolder);
 
         var n = 0;
-        foreach (var c in changes.Where(c => c.Op == ChangeOp.WriteImage))
+        foreach (var c in changes.Where(c => c.Op is ChangeOp.WriteImage or ChangeOp.WriteText))
         {
             n++;
             try { images.Add(WriteImage(c, batchFolder, $"{n:D3} {Path.GetFileName(c.Path)}")); }
             catch (Exception ex) { problems.Add((Path.GetFileName(c.Path), ex.Message)); }
         }
 
-        foreach (var group in changes.Where(c => c.Op != ChangeOp.WriteImage).GroupBy(c => c.Path))
+        foreach (var group in changes.Where(c => c.Op is not (ChangeOp.WriteImage or ChangeOp.WriteText)).GroupBy(c => c.Path))
         {
             n++;
             var path = group.Key;
@@ -240,7 +240,8 @@ public static class TagWriter
     /// image is small), the new one written beside it and swapped in.
     private static ImageEntry WriteImage(Change c, string batchFolder, string name)
     {
-        if (c.Data is not { Length: > 0 } data || !ArtImage.LooksLikeAnImage(data)) throw new IOException("not an image");
+        if (c.Data is not { Length: > 0 } data) throw new IOException("nothing to write");
+        if (c.Op == ChangeOp.WriteImage && !ArtImage.LooksLikeAnImage(data)) throw new IOException("not an image");
         Directory.CreateDirectory(Path.GetDirectoryName(c.Path)!);
         string? old = null;
         if (System.IO.File.Exists(c.Path))
@@ -373,6 +374,14 @@ public static class TagWriter
             case AudioFormat.Mp3:
             {
                 var id3 = (TagLib.Id3v2.Tag)file.GetTag(TagLib.TagTypes.Id3v2, true);
+                if (field == FieldMap.Lyrics)
+                {
+                    // USLT is a frame of its own, not a text frame: all of them
+                    // go, and one is written (TagLib#'s own Lyrics property).
+                    id3.RemoveFrames(Id("USLT"));
+                    if (value is not null) id3.Lyrics = value;
+                    return;
+                }
                 var key = field.Id3v2;
                 if (key.StartsWith("TXXX:", StringComparison.Ordinal))
                 {
@@ -461,8 +470,11 @@ public static class TagWriter
         if (after.Problem is not null) return $"the written copy does not read: {after.Problem}";
 
         foreach (var c in changes.Where(c => c.Op == ChangeOp.SetField))
-            if (after.Get(c.Field!) != c.To)
-                return $"{c.Field!.Name} reads back as \"{after.Get(c.Field!)}\", not \"{c.To}\"";
+        {
+            // Lyrics are compared as kept: line endings may come back as the format stores them.
+            var same = c.Field == FieldMap.Lyrics ? Lrc.Tidy(after.Get(c.Field)) == Lrc.Tidy(c.To) : after.Get(c.Field!) == c.To;
+            if (!same) return $"{c.Field!.Name} reads back as \"{after.Get(c.Field!)}\", not \"{c.To}\"";
+        }
         if (changes.Any(c => c is { Op: ChangeOp.RemoveTag, Key: "ID3v1" }) && after.HasId3v1) return "the ID3v1 tag is still there";
         if (changes.Any(c => c is { Op: ChangeOp.RemoveTag, Key: "APE" }) && after.HasApe) return "the APE tag is still there";
         foreach (var c in changes.Where(c => c.Op == ChangeOp.RemoveFrame))
@@ -512,6 +524,7 @@ public static class TagWriter
         if (c.Field == FieldMap.Disc) { yield return "DISCNUMBER"; yield return "DISCTOTAL"; yield return "TOTALDISCS"; yield return "disk"; }
         if (c.Field == FieldMap.Track) { yield return "TRACKNUMBER"; yield return "TRACKTOTAL"; yield return "TOTALTRACKS"; yield return "trkn"; }
         if (c.Op == ChangeOp.EmbedFront) { yield return "APIC"; yield return "covr"; }
+        if (c.Field == FieldMap.Lyrics) { yield return "USLT"; yield return "LYRICS"; yield return "UNSYNCEDLYRICS"; yield return "©lyr"; }
     }
 
     /// SHA-256 of the audio: the bytes no tag covers. FLAC: everything after

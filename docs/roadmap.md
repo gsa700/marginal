@@ -44,7 +44,13 @@ What comes next, in order. The spec is `docs/spec.md`.
    cover.jpg / back.jpg and embedding the front, all through Pending with
    exact Undo.* Cover Art Archive candidates, file/drop/paste, crop and
    resize, save and embed, into Pending.
-5. **Lyrics.** Show and edit plain and synced lyrics; LRCLIB search per track
+5. **Lyrics.** *5a done 2026-10-31: the Lyrics tab (tracks with what each
+   has, an LRC editor with Plain / Synced, Use / Revert / Remove), LRCLIB for
+   a track or the whole album with the 2 s rule (only an improvement goes in
+   unasked), the lyrics tag and a .lrc beside the track, through Pending with
+   exact Undo. LRCLIB's API answered 502 to everyone that afternoon, so its
+   tests use made-up answers in its documented shape; save real ones later.
+   5b, to come: playback and Tap to time (AlbumWall's decoders).* Show and edit plain and synced lyrics; LRCLIB search per track
    and for the album with the 2 s rule; `.lrc` sidecar. Then playback and Tap
    to time.
 6. **AlbumWall hook.** `marginal <folder>` on the command line; AlbumWall's

@@ -41,6 +41,9 @@ public sealed record TrackFile(
 {
     public string FileName => System.IO.Path.GetFileName(Path);
 
+    /// The .lrc beside the track, where synced lyrics are often kept.
+    public string LrcPath => System.IO.Path.ChangeExtension(Path, ".lrc");
+
     /// The file's cover: the front picture if one is typed so, else the first
     /// that reads as an image — AlbumWall's rule (ImageSize.Cover), since many
     /// files type their only cover "Other".
@@ -56,6 +59,8 @@ public sealed record TrackFile(
 
         var value = Find(field.KeyIn(tagFormat));
         if (value is null && field.Id3v23 is not null && tagFormat == TagFormat.Id3v2) value = Find(field.Id3v23);
+        // Older FLAC taggers wrote lyrics as UNSYNCEDLYRICS (AlbumWall reads both).
+        if (value is null && field == FieldMap.Lyrics && tagFormat == TagFormat.Flac) value = Find("UNSYNCEDLYRICS");
         // FLAC keeps the totals in a field of their own; show them as "6/9", as ID3 and MP4 do.
         if (value is not null && tagFormat == TagFormat.Flac)
         {

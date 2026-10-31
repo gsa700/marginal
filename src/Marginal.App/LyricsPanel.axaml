@@ -1,0 +1,193 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:app="using:Marginal.App"
+             x:Class="Marginal.App.LyricsPanel"
+             x:DataType="app:LyricsPanel">
+    <!-- The Lyrics tab (spec §3.2): each track's lyrics, an editor, and what
+         LRCLIB has. What is used goes to the album's Pending, like any edit. -->
+    <UserControl.Styles>
+        <Style Selector="ListBox">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+        </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Selected}"/>
+        </Style>
+        <Style Selector="ListBox.tracks ListBoxItem:selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+            <Setter Property="BorderThickness" Value="3,0,0,0"/>
+        </Style>
+        <Style Selector="Border.pill">
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Padding" Value="6,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="ToggleButton.seg">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Background" Value="{DynamicResource Panel}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="ToggleButton.seg:checked /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Text}"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="270" MinWidth="200" MaxWidth="420"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*" MinWidth="380"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="340" MinWidth="260" MaxWidth="560"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Tracks. -->
+        <Border Grid.Column="0" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Rule}" BorderThickness="0,0,1,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Margin="16,14,16,10" Spacing="3">
+                    <TextBlock Classes="label" Text="TRACKS"/>
+                    <TextBlock x:Name="TrackCounts" Classes="mono dim" TextWrapping="Wrap"/>
+                </StackPanel>
+                <ListBox x:Name="TrackList" Classes="tracks" SelectionChanged="OnTrackSelected">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="app:LyricsRow">
+                            <StackPanel Margin="16,7" Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Classes="mono dim" Text="{Binding Number}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                                <WrapPanel Margin="24,0,0,0">
+                                    <Border Classes="pill" Background="{Binding NowFill}" Margin="0,0,6,0">
+                                        <TextBlock Classes="mono" Foreground="{Binding NowInk}" Text="{Binding Now}"/>
+                                    </Border>
+                                    <TextBlock Classes="mono dim" Text="→" IsVisible="{Binding HasFound}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <Border Classes="pill" Background="{Binding FoundFill}" IsVisible="{Binding HasFound}">
+                                        <TextBlock Classes="mono" Foreground="{Binding FoundInk}" Text="{Binding Found}"/>
+                                    </Border>
+                                </WrapPanel>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <GridSplitter Grid.Column="1" Width="5" Background="Transparent" ResizeDirection="Columns"/>
+
+        <!-- Editor. -->
+        <DockPanel Grid.Column="2" Margin="20,18">
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                <Border DockPanel.Dock="Right" BorderBrush="{DynamicResource Edge}" BorderThickness="1" CornerRadius="6" ClipToBounds="True" VerticalAlignment="Bottom">
+                    <StackPanel Orientation="Horizontal">
+                        <ToggleButton x:Name="PlainView" Classes="seg" Content="Plain" Click="OnView"/>
+                        <ToggleButton x:Name="SyncedView" Classes="seg" Content="Synced" Click="OnView"/>
+                    </StackPanel>
+                </Border>
+                <StackPanel Spacing="2">
+                    <TextBlock x:Name="TrackTitle" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="TrackLine" Classes="dim"/>
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Pending for the album, so Write is at hand on this tab too. -->
+            <Border x:Name="PendingBar" DockPanel.Dock="Bottom" IsVisible="False" Margin="0,12,0,0" Background="{DynamicResource Selected}"
+                    BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="6" Padding="12,8">
+                <DockPanel>
+                    <Button x:Name="WriteButton" DockPanel.Dock="Right" Classes="primary" Click="OnWrite"/>
+                    <TextBlock x:Name="PendingText" VerticalAlignment="Center" FontWeight="Medium" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
+
+            <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="tool" Content="Revert" Click="OnRevert"/>
+                    <Button Classes="tool" Content="Remove lyrics" Click="OnClear"/>
+                    <Button x:Name="UseButton" Classes="tool" Content="Use for this track" Click="OnUseText"/>
+                </StackPanel>
+                <TextBlock x:Name="EditorNote" Classes="mono dim" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </DockPanel>
+
+            <TextBox x:Name="Editor" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="{StaticResource Mono}" FontSize="13"
+                     VerticalContentAlignment="Top" Padding="12,10" TextChanged="OnEdited"
+                     PlaceholderText="No lyrics. Type or paste them here, or find them with LRCLIB on the right."/>
+        </DockPanel>
+
+        <GridSplitter Grid.Column="3" Width="5" Background="Transparent" ResizeDirection="Columns"/>
+
+        <!-- LRCLIB. -->
+        <Border Grid.Column="4" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Rule}" BorderThickness="1,0,0,0">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="16,14" Spacing="12">
+                    <Button x:Name="FindAllButton" Classes="primary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                            Content="Find lyrics for the album" Click="OnFindAll"/>
+                    <Border x:Name="BusyBar" IsVisible="False" Background="{DynamicResource Selected}" BorderBrush="{DynamicResource Accent}"
+                            BorderThickness="1" CornerRadius="6" Padding="12,10">
+                        <StackPanel Spacing="8">
+                            <TextBlock x:Name="BusyText" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource Accent}" TextWrapping="Wrap"/>
+                            <ProgressBar IsIndeterminate="True" Height="4" MinHeight="4" Foreground="{DynamicResource Accent}" Background="#DCE8F7"/>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock x:Name="SourceNote" Classes="mono dim" TextWrapping="Wrap" LineHeight="16"
+                               Text="from LRCLIB (lrclib.net, free, community-run) · used without asking only when the length agrees within 2 s"/>
+
+                    <Border Height="1" Background="{DynamicResource RowRule}"/>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Classes="tool" Height="28" FontSize="12" Content="Search this track" Click="OnFindOne"/>
+                        <TextBlock Classes="label" Text="FOUND FOR THIS TRACK" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <TextBlock x:Name="FoundNote" Classes="dim" FontSize="12" TextWrapping="Wrap"/>
+                    <ItemsControl x:Name="ResultList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="app:ResultRow">
+                                <Border Background="{Binding Fill}" BorderBrush="{Binding Edge}" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,8">
+                                    <StackPanel Spacing="4">
+                                        <DockPanel>
+                                            <Border DockPanel.Dock="Right" Classes="pill" Background="{Binding TagFill}">
+                                                <TextBlock Classes="mono" Foreground="{Binding TagInk}" Text="{Binding Tag}"/>
+                                            </Border>
+                                            <TextBlock FontSize="12" FontWeight="Medium" Text="{Binding Title}"/>
+                                        </DockPanel>
+                                        <TextBlock Classes="mono soft" Text="{Binding Detail}" TextWrapping="Wrap" LineHeight="16"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                            <Button Classes="tool" Height="28" FontSize="12" Content="Use this" Click="OnUseResult" Tag="{Binding}"/>
+                                            <Button Classes="tool" Height="28" FontSize="12" Content="Preview" Click="OnPreviewResult" Tag="{Binding}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Border Height="1" Background="{DynamicResource RowRule}"/>
+                    <TextBlock Classes="label" Text="WRITE LYRICS TO"/>
+                    <CheckBox x:Name="ToTag" IsChecked="True" FontSize="12">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="The file's lyrics tag" FontSize="12"/>
+                            <TextBlock Classes="mono dim" Text="LYRICS (FLAC) · USLT (MP3) · ©lyr (M4A)"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="ToLrc" IsChecked="True" FontSize="12">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="A synced .lrc beside the track" FontSize="12"/>
+                            <TextBlock Classes="mono dim" Text="only for lyrics with times"/>
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="TimesInTag" FontSize="12">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Keep the time codes inside the tag" FontSize="12"/>
+                            <TextBlock Classes="dim" FontSize="11" TextWrapping="Wrap" Text="Some players follow them; others show the [01:12.40] codes as text."/>
+                        </StackPanel>
+                    </CheckBox>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>

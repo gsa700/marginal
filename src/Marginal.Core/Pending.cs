@@ -14,7 +14,7 @@ public enum ChangeKind { Add, Change, Remove }
 /// drops one raw frame by its key; WriteImage saves `Data` as an image file
 /// beside the tracks (cover.jpg, back.jpg); EmbedFront puts `Data` in a file
 /// as its front cover, in place of the one it has.
-public enum ChangeOp { SetField, RemoveTag, RemoveFrame, WriteImage, EmbedFront }
+public enum ChangeOp { SetField, RemoveTag, RemoveFrame, WriteImage, EmbedFront, WriteText }
 
 public sealed record Change(
     string Path,
@@ -92,6 +92,48 @@ public static class Pending
             var from = cover is null ? null : $"{cover.Size} · {TrackReader.Bytes(cover.Bytes)}";
             return new Change(t.Path, ChangeOp.EmbedFront, cover is null ? ChangeKind.Add : ChangeKind.Change, key, from, to, Data: image);
         }).ToList();
+    }
+
+    /// Lyrics for one track, where asked (spec §3.2): the file's lyrics tag
+    /// (with the time codes only if `timesInTag`: some players show them as
+    /// text) and, for synced lyrics, a .lrc beside the track. Empty `text`
+    /// removes the lyrics from the tag; an existing .lrc is then left alone.
+    public static IReadOnlyList<Change> SetLyrics(TrackFile track, string? text, bool tag, bool lrc, bool timesInTag)
+    {
+        var changes = new List<Change>();
+        var synced = TrackReader.KindOf(text) == LyricsKind.Synced;
+        if (tag)
+        {
+            var value = Lrc.Tidy(synced && !timesInTag ? Lrc.Plain(text) : text);
+            var now = track.Get(FieldMap.Lyrics);
+            if (Lrc.Tidy(now) != value)
+            {
+                var key = track.Format switch { AudioFormat.Flac => "LYRICS", AudioFormat.Mp3 => "USLT", _ => "©lyr" };
+                var to = value.Length == 0 ? null : value;
+                changes.Add(new Change(track.Path, ChangeOp.SetField,
+                    now is null ? ChangeKind.Add : to is null ? ChangeKind.Remove : ChangeKind.Change,
+                    key, LyricsSummary(now), to, FieldMap.Lyrics));
+            }
+        }
+        if (lrc && synced)
+        {
+            var body = Lrc.Tidy(text) + "\n";
+            var path = track.LrcPath;
+            var now = System.IO.File.Exists(path) ? System.IO.File.ReadAllText(path) : null;
+            if (Lrc.Tidy(now) != Lrc.Tidy(body))
+                changes.Add(new Change(path, ChangeOp.WriteText, now is null ? ChangeKind.Add : ChangeKind.Change,
+                    ".lrc", LyricsSummary(now), LyricsSummary(body), Data: System.Text.Encoding.UTF8.GetBytes(body)));
+        }
+        return changes;
+    }
+
+    /// "synced · 42 lines" or "plain · 31 lines", for Pending's from and to.
+    public static string? LyricsSummary(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var kind = TrackReader.KindOf(text) == LyricsKind.Synced ? "synced" : "plain";
+        var lines = Lrc.Tidy(text).Split('\n').Count(l => l.Trim().Length > 0);
+        return $"{kind} · {lines} line{(lines == 1 ? "" : "s")}";
     }
 
     /// "1200×1200 · 312 KB".

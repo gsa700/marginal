@@ -79,6 +79,28 @@
             <Setter Property="Background" Value="{DynamicResource Text}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
         </Style>
+        <!-- The mode tabs: a line under the one that is open. -->
+        <Style Selector="Button.tab">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0,0,0,2"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{DynamicResource Soft}"/>
+        </Style>
+        <Style Selector="Button.tab:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Rule}"/>
+        </Style>
+        <Style Selector="Button.tab.on">
+            <Setter Property="BorderBrush" Value="{DynamicResource Text}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="Button.tab.on:pointerover /template/ ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource Text}"/>
+        </Style>
         <Style Selector="GridSplitter.pane">
             <Setter Property="Width" Value="5"/>
             <Setter Property="MinWidth" Value="5"/>
@@ -96,12 +118,8 @@
         <Border DockPanel.Dock="Top" Background="{DynamicResource Panel}"
                 BorderBrush="{DynamicResource Rule}" BorderThickness="0,0,0,1" Padding="16,0">
             <StackPanel Orientation="Horizontal" Spacing="4">
-                <Border BorderBrush="{DynamicResource Text}" BorderThickness="0,0,0,2" Padding="14,10">
-                    <TextBlock Text="Tags &amp; art" FontWeight="SemiBold"/>
-                </Border>
-                <Border BorderThickness="0,0,0,2" BorderBrush="Transparent" Padding="14,10">
-                    <TextBlock Text="Lyrics" Classes="soft"/>
-                </Border>
+                <Button x:Name="TagsTab" Classes="tab on" Content="Tags &amp; art" Click="OnTab"/>
+                <Button x:Name="LyricsTab" Classes="tab" Content="Lyrics" Click="OnTab"/>
             </StackPanel>
         </Border>
 
@@ -255,7 +273,7 @@
             </Border>
 
             <!-- Album. -->
-            <Panel Grid.Column="2">
+            <Panel x:Name="AlbumPane" Grid.Column="2">
                 <StackPanel x:Name="EmptyAlbum" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="420">
                     <TextBlock Text="No album open" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center"/>
                     <TextBlock Classes="dim" TextWrapping="Wrap" TextAlignment="Center" LineHeight="19"
@@ -449,9 +467,12 @@
             <!-- Drag handles: the library and the art panel can be made wider
                  or narrower (Dave's ask, 2026-10-31). -->
             <GridSplitter Grid.Column="1" Classes="pane"/>
-            <GridSplitter Grid.Column="3" Classes="pane"/>
+            <GridSplitter x:Name="ArtSplitter" Grid.Column="3" Classes="pane"/>
 
-            <Border Grid.Column="4" Background="{DynamicResource Panel}"
+            <!-- The Lyrics tab, over the album and art columns. -->
+            <app:LyricsPanel x:Name="Lyrics" Grid.Column="2" Grid.ColumnSpan="3" IsVisible="False"/>
+
+            <Border x:Name="ArtPane" Grid.Column="4" Background="{DynamicResource Panel}"
                     BorderBrush="{DynamicResource Rule}" BorderThickness="1,0,0,0">
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="16,14" Spacing="14">

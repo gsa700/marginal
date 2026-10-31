@@ -25,6 +25,8 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Lyrics.Changes += changes => AddPending(changes);
+        Lyrics.WriteAsked += () => OnWrite(this, new RoutedEventArgs());
         UpdateUndo();
         UpdateBackups();
         // Originals older than the keeping time go, quietly, at each start.
@@ -153,6 +155,7 @@ public sealed partial class MainWindow : Window
         ArtHint.IsVisible = album is null;
         ArtGrid.IsVisible = album is not null;
         LookupButton.IsEnabled = album is not null;
+        if (album is null) Lyrics.Show(null);
         ArtButton.IsEnabled = album is not null;
         if (album is null)
         {
@@ -181,6 +184,7 @@ public sealed partial class MainWindow : Window
         if (fixable > 0) AlbumChips.Children.Add(Chip($"{fixable} fixable", Tone.Fixable));
         if (missing + fixable == 0) AlbumChips.Children.Add(Chip("clean", Tone.Clean));
 
+        Lyrics.Show(album);
         ValuesHeader.Text = $"VALUE ACROSS {album.Tracks.Count} FILES";
         _onShare = Library.IsOnNetworkShare(album.Folder);
         LookupButton.IsEnabled = true;
@@ -240,6 +244,20 @@ public sealed partial class MainWindow : Window
         FileFacts.ItemsSource = facts;
 
         ShowEmbeddedArt(track);
+    }
+
+    // ---- the mode tabs -------------------------------------------------------
+
+    /// Tags & art or Lyrics: the Lyrics panel takes the album and art columns.
+    private void OnTab(object? sender, RoutedEventArgs e)
+    {
+        var lyrics = ReferenceEquals(sender, LyricsTab);
+        TagsTab.Classes.Set("on", !lyrics);
+        LyricsTab.Classes.Set("on", lyrics);
+        Lyrics.IsVisible = lyrics;
+        AlbumPane.IsVisible = !lyrics;
+        ArtPane.IsVisible = !lyrics;
+        ArtSplitter.IsVisible = !lyrics;
     }
 
     // ---- editing and Pending -----------------------------------------------
@@ -334,8 +352,9 @@ public sealed partial class MainWindow : Window
     {
         var list = PendingHere;
         PendingCard.IsVisible = list.Count > 0;
-        if (list.Count == 0) return;
         var files = list.Select(c => c.Path).Distinct().Count();
+        Lyrics.ShowPending(list.Count, files, !_onShare);
+        if (list.Count == 0) return;
         PendingTitle.Text = $"Pending: {list.Count} change{(list.Count == 1 ? "" : "s")} in {files} file{(files == 1 ? "" : "s")}";
         int Count(ChangeKind k) => list.Count(c => c.Kind == k);
         PendingAdds.Text = Count(ChangeKind.Add) is > 0 and var a ? $"+{a} add" : "";
