@@ -10,6 +10,9 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // System libraries from the system's places, before anything loads one (NativeLoading).
+        NativeLoading.Install();
+
         // Who this program is to Windows, before any window exists (WindowsShell).
         WindowsShell.ClaimIdentity();
 

@@ -60,7 +60,18 @@ public static class UpdateService
     // answer for both, so a change to them is made once (code review 2026-10-25).
     public const string Repo = Install.InstallService.Repo;
     public const string ProjectUrl = "https://github.com/" + Repo;
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
+    // The release list and SHA256SUMS are buffered whole: no bigger than this
+    // (they were read with no limit; security review 2026-10-31, C4).
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30), MaxResponseContentBufferSize = 8 * 1024 * 1024 };
+
+    /// The largest package taken: a release zip is about 40 MB.
+    private const long MaxDownload = 300L * 1024 * 1024;
+
+    /// How long the download may go without a byte, and in all. HttpClient's
+    /// Timeout stops at the headers when the body is read as it arrives: a
+    /// stalled server held the download open indefinitely (review C4).
+    private static readonly TimeSpan StallLimit = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan DownloadLimit = TimeSpan.FromMinutes(20);
 
     public static string ExeFileName => Install.InstallService.ExeFileName;
     public static string ExePath => Install.InstallService.ExePath;
@@ -183,10 +194,19 @@ public static class UpdateService
                 return info;
             }
             resp.EnsureSuccessStatusCode();
+            CheckLanded(resp);
 
             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
             JsonElement root;
-            if (!edge) root = doc.RootElement;
+            // Stable is held to what Edge is: an app tag (vX.Y.Z), not a draft,
+            // not a pre-release (review C8).
+            if (!edge && Stable(doc.RootElement) is { } stable) root = stable;
+            else if (!edge)
+            {
+                info.NothingPublished = true;
+                Console.WriteLine("[update] stable: the latest release is not an app release");
+                return info;
+            }
             else if (ReleaseFeed.Newest(doc.RootElement) is { } newest) root = newest;
             else
             {
@@ -227,6 +247,12 @@ public static class UpdateService
         }
         return info;
     }
+
+    /// GitHub's /releases/latest answer, when it is a published app release.
+    private static JsonElement? Stable(JsonElement r) =>
+        r.ValueKind == JsonValueKind.Object
+        && Json.Str(r, "tag_name") is { } tag && ReleaseFeed.IsAppTag(tag)
+        && !Json.True(r, "draft") && !Json.True(r, "prerelease") ? r : null;
 
     /// Where the update was downloaded and unpacked: a new private folder each
     /// time (mode 0700, unique name), never a fixed name in the shared temp
@@ -300,16 +326,29 @@ public static class UpdateService
             resp.EnsureSuccessStatusCode();
             CheckLanded(resp);
             var total = resp.Content.Headers.ContentLength ?? 0;
+            if (total > MaxDownload) throw new InvalidOperationException("The download is far larger than a release. Nothing was installed.");
             await using var from = await resp.Content.ReadAsStreamAsync();
             await using var to = File.Create(zip);
             var buffer = new byte[1 << 16];
             long done = 0;
             int n;
-            while ((n = await from.ReadAsync(buffer)) > 0)
+            using var overall = new CancellationTokenSource(DownloadLimit);
+            try
             {
-                await to.WriteAsync(buffer.AsMemory(0, n));
-                done += n;
-                if (total > 0) progress?.Report((double)done / total);
+                while (true)
+                {
+                    using var stall = CancellationTokenSource.CreateLinkedTokenSource(overall.Token);
+                    stall.CancelAfter(StallLimit);
+                    if ((n = await from.ReadAsync(buffer, stall.Token)) <= 0) break;
+                    await to.WriteAsync(buffer.AsMemory(0, n));
+                    done += n;
+                    if (done > MaxDownload) throw new InvalidOperationException("The download is far larger than a release. Nothing was installed.");
+                    if (total > 0) progress?.Report((double)done / total);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw new InvalidOperationException("The download stalled. Nothing was installed; try again later.");
             }
         }
 
@@ -342,6 +381,11 @@ public static class UpdateService
         // the same for each native library a Native AOT build has beside it.
         if (!await IsBinaryForThisSystemAsync(staged) || new FileInfo(staged).Length < 1_000_000)
             throw new InvalidOperationException("The downloaded program is not an executable for this system.");
+        // The version it says it is, as release.sh checks: an older build from
+        // the same account cannot come back as an update (the Mac checks its
+        // bundle's version in MacUpdate; review C8).
+        if (!SaysVersion(staged, info.LatestTag))
+            throw new InvalidOperationException($"The downloaded program does not say it is {info.LatestTag}. Nothing was installed.");
         foreach (var lib in Install.InstallLayout.NativeLibrariesIn(Path.GetDirectoryName(staged)!))
             if (!await IsBinaryForThisSystemAsync(Path.Combine(Path.GetDirectoryName(staged)!, lib)))
                 throw new InvalidOperationException($"The downloaded {lib} is not a library for this system.");
@@ -358,6 +402,14 @@ public static class UpdateService
         bool Named(string f) => Path.GetFileName(f) == exeName;   // the name as it is on disk
         return Directory.GetFiles(unpacked, exeName).FirstOrDefault(Named)
             ?? Directory.GetFiles(unpacked, exeName, SearchOption.AllDirectories).FirstOrDefault(Named);
+    }
+
+    /// Whether the program holds "X.Y.Z+" (its informational version, as
+    /// plain text) for the tag vX.Y.Z.
+    public static bool SaysVersion(string program, string tag)
+    {
+        var needle = System.Text.Encoding.ASCII.GetBytes(tag.TrimStart('v', 'V') + "+");
+        return File.ReadAllBytes(program).AsSpan().IndexOf(needle) >= 0;
     }
 
     private static async Task<bool> IsBinaryForThisSystemAsync(string path)

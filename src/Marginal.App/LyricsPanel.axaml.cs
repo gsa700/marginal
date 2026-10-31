@@ -37,6 +37,9 @@ public sealed partial class LyricsPanel : UserControl
     /// time each had before (null: none), so Back a line can undo them in turn.
     private readonly Stack<(int Line, TimeSpan? Before)> _tapped = new();
 
+    /// Text in the editor not yet put in Pending with Use (an update waits for it).
+    public bool HasUnusedText => _track is not null && UseButton.IsEnabled;
+
     /// Changes to add to the album's Pending.
     public event Action<IReadOnlyList<Change>>? Changes;
 

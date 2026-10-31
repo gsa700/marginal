@@ -317,12 +317,25 @@ public sealed partial class MainWindow : Window
     /// Pending changes would be lost, so it refuses while there are any.
     internal async Task ApplyUpdateAsync(UpdateInfo info, IProgress<double> progress)
     {
-        if (_pending.Count > 0)
-            throw new InvalidOperationException("Write or discard the pending changes first; the update restarts Marginal.");
+        if (UpdateBlocker() is { } before) throw new InvalidOperationException(before);
         var staged = await UpdateService.DownloadAndStageAsync(info, progress);
+        // Asked again: Preferences does not hold the window still, and edits
+        // made or a write started during the download were lost with the
+        // restart (security review 2026-10-31, C3).
+        if (UpdateBlocker() is { } after) throw new InvalidOperationException(after + " The update is downloaded; try again then.");
         UpdateService.ApplyAndRestart(staged);
         Close();
     }
+
+    /// Writes running now (Write, Write all, Undo): an update waits for them.
+    private int _writing;
+
+    /// Why the update may not restart Marginal now, or null.
+    private string? UpdateBlocker() =>
+        _writing > 0 ? "A write is running; wait for it to finish."
+        : _pending.Count > 0 ? "Write or discard the pending changes first; the update restarts Marginal."
+        : Lyrics.HasUnusedText ? "The lyrics editor holds text not yet Used; Use or Revert it first; the update restarts Marginal."
+        : null;
 
     private void OnPrefs(object? sender, RoutedEventArgs e)
     {
@@ -467,11 +480,18 @@ public sealed partial class MainWindow : Window
         if (_album is not { } album || PendingHere is not { Count: > 0 } changes || _onShare) return;
         WriteButton.IsEnabled = false;
         WriteButton.Content = "Writing…";
-        var (result, reread) = await Task.Run(() =>
+        _writing++;
+        WriteResult result;
+        Album reread;
+        try
         {
-            var r = TagWriter.Write(changes);
-            return (r, AlbumReader.Read(album.Folder));
-        });
+            (result, reread) = await Task.Run(() =>
+            {
+                var r = TagWriter.Write(changes);
+                return (r, AlbumReader.Read(album.Folder));
+            });
+        }
+        finally { _writing--; }
 
         _pending.Remove(album.Folder);
         ReplaceAlbum(reread);
@@ -488,11 +508,18 @@ public sealed partial class MainWindow : Window
     {
         if (TagWriter.Latest() is not { } batch) return;
         UndoButton.IsEnabled = false;
-        var (problems, reread) = await Task.Run(() =>
+        _writing++;
+        IReadOnlyList<(string File, string Problem)> problems;
+        List<Album> reread;
+        try
         {
-            var p = TagWriter.Undo(batch);
-            return (p, batch.Folders.Where(Directory.Exists).Select(AlbumReader.Read).ToList());
-        });
+            (problems, reread) = await Task.Run(() =>
+            {
+                var p = TagWriter.Undo(batch);
+                return (p, batch.Folders.Where(Directory.Exists).Select(AlbumReader.Read).ToList());
+            });
+        }
+        finally { _writing--; }
         foreach (var a in reread) ReplaceAlbum(a);
         var undid = $"Undid the write of {batch.Time:HH:mm:ss}: {batch.Count - problems.Count} of {batch.Count} files back as they were.";
         ShowResult(undid, problems.Select(p => $"{p.File}: {p.Problem}"), problems.Count == 0 ? Tone.Clean : Tone.Missing);
@@ -558,11 +585,18 @@ public sealed partial class MainWindow : Window
         WriteAllButton.IsEnabled = false;
         WriteAllButton.Content = "Writing…";
         var folders = _pending.Keys.ToList();
-        var (result, reread) = await Task.Run(() =>
+        _writing++;
+        WriteResult result;
+        List<Album> reread;
+        try
         {
-            var r = TagWriter.Write(all);
-            return (r, folders.Where(Directory.Exists).Select(AlbumReader.Read).ToList());
-        });
+            (result, reread) = await Task.Run(() =>
+            {
+                var r = TagWriter.Write(all);
+                return (r, folders.Where(Directory.Exists).Select(AlbumReader.Read).ToList());
+            });
+        }
+        finally { _writing--; }
         _pending.Clear();
         foreach (var a in reread) ReplaceAlbum(a);
         WriteAllButton.IsEnabled = true;

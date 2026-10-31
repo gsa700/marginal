@@ -28,20 +28,20 @@ public sealed class FileSecurityTests : IDisposable
     {
         // Only what a test locked is unlocked: walking the tree here would
         // follow the very link loops the tests plant.
-        foreach (var d in _locked)
-            try { File.SetUnixFileMode(d, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); } catch (Exception) { }
+        if (!OperatingSystem.IsWindows())
+            foreach (var d in _locked)
+                try { File.SetUnixFileMode(d, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); } catch (Exception) { }
         try { Directory.Delete(_root, recursive: true); } catch (Exception) { }
     }
 
     private string Track(string start) => Directory.GetFiles(_album).Single(f => Path.GetFileName(f).StartsWith(start));
-    private static bool Unix => !OperatingSystem.IsWindows();
 
     // ---- B1 / A6: folder links ---------------------------------------------------
 
     [Fact]
     public void Scan_does_not_follow_folder_links_in_circles()
     {
-        if (!Unix) return;
+        if (OperatingSystem.IsWindows()) return;
         Directory.CreateSymbolicLink(Path.Combine(_album, "a"), ".");
         Directory.CreateSymbolicLink(Path.Combine(_album, "b"), ".");
         Directory.CreateSymbolicLink(Path.Combine(_album, "up"), "..");
@@ -54,7 +54,7 @@ public sealed class FileSecurityTests : IDisposable
     [Fact]
     public void Scan_does_not_follow_a_link_out_of_the_library()
     {
-        if (!Unix) return;
+        if (OperatingSystem.IsWindows()) return;
         var outside = Path.Combine(_root, "outside");
         Directory.CreateDirectory(outside);
         File.Copy(Track("01"), Path.Combine(outside, "x.flac"));
@@ -75,7 +75,7 @@ public sealed class FileSecurityTests : IDisposable
     [Fact]
     public void Unreadable_folder_is_passed_over()
     {
-        if (!Unix) return;
+        if (OperatingSystem.IsWindows()) return;
         var locked = Path.Combine(_root, "lib", "Locked");
         Directory.CreateDirectory(locked);
         File.Copy(Track("01"), Path.Combine(locked, "x.flac"));
@@ -88,7 +88,7 @@ public sealed class FileSecurityTests : IDisposable
     [Fact]
     public void Unreadable_cover_does_not_stop_the_album()
     {
-        if (!Unix) return;
+        if (OperatingSystem.IsWindows()) return;
         File.SetUnixFileMode(Path.Combine(_album, "cover.jpg"), UnixFileMode.None);
         var album = AlbumReader.Read(_album);
         Assert.Equal(3, album.Tracks.Count);
@@ -100,7 +100,7 @@ public sealed class FileSecurityTests : IDisposable
     [Fact]
     public void Cover_and_lrc_linked_to_a_device_are_not_read()
     {
-        if (!Unix) return;
+        if (OperatingSystem.IsWindows()) return;
         File.Delete(Path.Combine(_album, "cover.jpg"));
         File.CreateSymbolicLink(Path.Combine(_album, "cover.jpg"), "/dev/zero");
         var lrc = Path.ChangeExtension(Track("01"), ".lrc");
@@ -114,26 +114,24 @@ public sealed class FileSecurityTests : IDisposable
     }
 
     [Fact]
-    public void A_pipe_is_not_opened()
+    public async Task A_pipe_is_not_opened()
     {
-        if (!Unix) return;
+        if (OperatingSystem.IsWindows()) return;
         var fifo = Path.Combine(_album, "cover.jpg");
         File.Delete(fifo);
-        Assert.Equal(0, Process.Start("/usr/bin/mkfifo", fifo)!.WaitForExitAsync().ContinueWith(_ => 0).Result);
-        var task = Task.Run(() => (SafeFiles.Read(fifo, 1000), AlbumReader.Read(_album)));
-        Assert.True(task.Wait(TimeSpan.FromSeconds(5)), "reading a pipe waited");
-        Assert.Null(task.Result.Item1);
+        await Process.Start("/usr/bin/mkfifo", fifo)!.WaitForExitAsync();
+        var (bytes, _) = await Task.Run(() => (SafeFiles.Read(fifo, 1000), AlbumReader.Read(_album))).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Null(bytes);
     }
 
     [Fact]
-    public void A_music_file_that_is_a_pipe_is_unreadable_not_waited_on()
+    public async Task A_music_file_that_is_a_pipe_is_unreadable_not_waited_on()
     {
-        if (!Unix) return;
+        if (OperatingSystem.IsWindows()) return;
         var fifo = Path.Combine(_album, "04 Pipe.flac");
-        Process.Start("/usr/bin/mkfifo", fifo)!.WaitForExit();
-        var task = Task.Run(() => TrackReader.Read(fifo));
-        Assert.True(task.Wait(TimeSpan.FromSeconds(5)), "reading a pipe waited");
-        Assert.NotNull(task.Result.Problem);
+        await Process.Start("/usr/bin/mkfifo", fifo)!.WaitForExitAsync();
+        var track = await Task.Run(() => TrackReader.Read(fifo)).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.NotNull(track.Problem);
     }
 
     [Fact]
@@ -151,7 +149,7 @@ public sealed class FileSecurityTests : IDisposable
     [Fact]
     public void A_linked_track_is_refused_and_its_target_untouched()
     {
-        if (!Unix) return;
+        if (OperatingSystem.IsWindows()) return;
         var target = Path.Combine(_root, "private.flac");
         File.Move(Track("01"), target);
         File.CreateSymbolicLink(Path.Combine(_album, "01 First.flac"), target);
@@ -166,7 +164,7 @@ public sealed class FileSecurityTests : IDisposable
     [Fact]
     public void A_cover_linked_to_a_private_file_is_never_backed_up()
     {
-        if (!Unix) return;
+        if (OperatingSystem.IsWindows()) return;
         var secret = Path.Combine(_root, "id_ed25519");
         File.WriteAllText(secret, "PRIVATE KEY");
         var cover = Path.Combine(_album, "cover.jpg");
@@ -286,7 +284,7 @@ public sealed class FileSecurityTests : IDisposable
     [Fact]
     public void Backup_listing_does_not_follow_links_and_skips_unreadable()
     {
-        if (!Unix) return;
+        if (OperatingSystem.IsWindows()) return;
         var batch = WriteLabel();
         Directory.CreateSymbolicLink(Path.Combine(batch.BackupFolder, "loop"), ".");
         Directory.CreateSymbolicLink(Path.Combine(batch.BackupFolder, "loop2"), ".");
@@ -305,7 +303,7 @@ public sealed class FileSecurityTests : IDisposable
     [Fact]
     public void Real_path_follows_links()
     {
-        if (!Unix) return;
+        if (OperatingSystem.IsWindows()) return;
         var link = Path.Combine(_root, "link");
         Directory.CreateSymbolicLink(link, _album);
         Assert.Equal(SafeFiles.RealPath(_album), SafeFiles.RealPath(Path.Combine(link)));
@@ -316,7 +314,7 @@ public sealed class FileSecurityTests : IDisposable
     [Fact]
     public void Real_path_of_a_loop_is_null()
     {
-        if (!Unix) return;
+        if (OperatingSystem.IsWindows()) return;
         var a = Path.Combine(_root, "la");
         var b = Path.Combine(_root, "lb");
         File.CreateSymbolicLink(a, b);

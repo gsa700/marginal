@@ -14,6 +14,10 @@ icons="$HOME/.local/share/icons/hicolor"
 entry="$apps/marginal.desktop"   # its name is the Wayland app_id (WaylandShell.AppId)
 
 if [[ "${1:-}" == "--remove" ]]; then
+    # Backups from before 0.1.0's review lived inside $dest; they go where
+    # the app keeps them now (TagWriter.DefaultBackupRoot) before $dest goes.
+    state="${XDG_STATE_HOME:-$HOME/.local/state}/marginal"
+    if [[ -d "$dest/backups" && ! -e "$state/backups" ]]; then mkdir -p "$state" && mv "$dest/backups" "$state/backups"; fi
     rm -rf "$dest" "$entry" "$icons/scalable/apps/marginal.svg" "$icons/256x256/apps/marginal.png"  # svg: older runs wrote one
     command -v update-desktop-database >/dev/null && update-desktop-database -q "$apps" || true
     echo "Marginal removed."

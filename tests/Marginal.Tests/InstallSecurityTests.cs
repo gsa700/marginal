@@ -72,3 +72,32 @@ public sealed class InstallSecurityTests
         Assert.Equal(OperatingSystem.IsWindows() ? InstallAction.Uninstall : InstallAction.None,
             InstallCommandLine.Parse(["/uninstall"]).Action);
 }
+
+public sealed class NativeLoadingTests
+{
+    // ---- C2: system libraries from the system's places ---------------------------
+
+    [Theory]
+    [InlineData("libSkiaSharp", true)]
+    [InlineData("libHarfBuzzSharp.so", true)]
+    [InlineData("av_libglesv2.dll", true)]
+    [InlineData("libpulse-simple.so.0", false)]
+    [InlineData("libX11.so.6", false)]
+    [InlineData("dwmapi.dll", false)]
+    public void Only_the_shipped_libraries_come_from_beside_the_program(string library, bool beside) =>
+        Assert.Equal(beside, Marginal.App.NativeLoading.IsBeside(library));
+
+    [Fact]
+    public void A_library_the_system_lacks_falls_back_to_the_default_search() =>
+        Assert.Equal(IntPtr.Zero, Marginal.App.NativeLoading.Resolve("libmarginal-no-such-library.so.9", typeof(NativeLoadingTests).Assembly, null));
+
+    [Fact]
+    public void A_staged_program_must_say_its_version()
+    {
+        var file = Path.Combine(Directory.CreateTempSubdirectory("marginal-ver-").FullName, "Marginal");
+        File.WriteAllBytes(file, [.. new byte[100], .. "0.2.0+abc123"u8, .. new byte[100]]);
+        Assert.True(Marginal.App.UpdateService.SaysVersion(file, "v0.2.0"));
+        Assert.False(Marginal.App.UpdateService.SaysVersion(file, "v0.3.0"));
+        Directory.Delete(Path.GetDirectoryName(file)!, recursive: true);
+    }
+}
