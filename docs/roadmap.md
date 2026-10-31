@@ -4,11 +4,14 @@ What comes next, in order. The spec is `docs/spec.md`.
 
 ## Steps
 
-0. **Skeleton.** Solution and projects (`Marginal.App`, `Marginal.Core`,
+0. **Skeleton.** *Done 2026-10-31 (3f81aa8), CI green on all three.* Solution and projects (`Marginal.App`, `Marginal.Core`,
    `Marginal.Tests`), Directory.Build.props, CI on all three platforms with
    Native AOT, the light theme, an empty main window. Privacy rules and
    release scripts copied from Deadwax.
-1. **Read and show.** Open a folder, list albums, show an album's fields,
+1. **Read and show.** *Done 2026-10-31: tried on Control's ~/Music (386
+   albums). Also: the cover from the files when there is no cover.jpg,
+   resizable panes, square within 1%, track-level fields out of the album
+   table.* Open a folder, list albums, show an album's fields,
    tracks and raw frames for FLAC, MP3 and M4A through TagLib#. The status
    checks (ID3v1 leftover, values that differ across tracks, missing album
    artist, embedded art vs cover.jpg). Read only: nothing can be written yet.

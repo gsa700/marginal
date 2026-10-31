@@ -18,7 +18,12 @@ public sealed class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.MainWindow = new MainWindow();
+        {
+            var window = new MainWindow();
+            desktop.MainWindow = window;
+            // `marginal <folder>` opens that folder (spec §6); other arguments are ignored.
+            window.OpenAtStart(desktop.Args?.FirstOrDefault(a => !a.StartsWith('-')));
+        }
         base.OnFrameworkInitializationCompleted();
     }
 }

@@ -45,10 +45,21 @@ public static class FieldMap
     public static readonly Field MusicBrainzRelease = new("MusicBrainz release", "MUSICBRAINZ_ALBUMID", "TXXX:MusicBrainz Album Id", Itunes + "MusicBrainz Album Id");
     public static readonly Field Lyrics = new("Lyrics", "LYRICS", "USLT", "©lyr");
 
-    /// In the order the Album fields table shows them.
     public static readonly IReadOnlyList<Field> All =
     [
         Title, Artist, Album, AlbumArtist, Track, Disc, Date, OriginalDate,
         Genre, Label, CatalogNumber, Barcode, MusicBrainzRelease, Lyrics,
     ];
+
+    /// The Album fields table, in its order: what describes the album. Title,
+    /// Track and Lyrics are each track's own and live in the track table;
+    /// a table of twelve different titles in orange was noise (2026-10-31).
+    public static readonly IReadOnlyList<Field> AlbumTable =
+    [
+        Album, AlbumArtist, Artist, Date, OriginalDate, Disc,
+        Genre, Label, CatalogNumber, Barcode, MusicBrainzRelease,
+    ];
+
+    /// May rightly differ from track to track: a guest on one song.
+    public static bool VariesByTrack(Field f) => f == Artist;
 }

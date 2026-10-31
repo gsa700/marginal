@@ -1,14 +1,95 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="using:Marginal.App"
         x:Class="Marginal.App.MainWindow"
+        x:DataType="app:MainWindow"
         Title="Marginal"
-        Width="1280" Height="820" MinWidth="900" MinHeight="560"
+        Width="1360" Height="860" MinWidth="980" MinHeight="580"
         Background="{DynamicResource Ground}"
         WindowStartupLocation="CenterScreen">
-    <!-- The main window as in the mockups (Tags & art), empty: nothing opened
-         yet, nothing can be written yet (roadmap step 0). The panes are the
-         mockup's: Library left, Album centre, Art right, Pending under the
-         album, the status bar's promises at the foot. -->
+    <!-- Tags & art, as in the mockups. Step 1: everything is read and shown;
+         nothing can be written yet, so there is no Pending and no Write. -->
+    <Window.Styles>
+        <!-- Lists without Fluent's own selection paint; the row draws its own. -->
+        <Style Selector="ListBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+        </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Selected}"/>
+        </Style>
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#F5F7FA"/>
+        </Style>
+        <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Selected}"/>
+        </Style>
+        <Style Selector="Border.pill">
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Padding" Value="6,0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource Panel}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Rule}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="ClipToBounds" Value="True"/>
+        </Style>
+        <Style Selector="Border.head">
+            <Setter Property="Background" Value="{DynamicResource Bar}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Rule}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Padding" Value="14,8"/>
+        </Style>
+        <Style Selector="TextBlock.th">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="LetterSpacing" Value="0.7"/>
+            <Setter Property="Foreground" Value="{DynamicResource Dim}"/>
+        </Style>
+        <Style Selector="ToggleButton.chip">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Padding" Value="8,2"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Background" Value="#EEF0F3"/>
+            <Setter Property="Foreground" Value="{DynamicResource Soft}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="ToggleButton.chip:checked /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Text}"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+        </Style>
+        <Style Selector="ToggleButton.seg">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Background" Value="{DynamicResource Panel}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="ToggleButton.seg:checked /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Text}"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+        </Style>
+        <Style Selector="GridSplitter.pane">
+            <Setter Property="Width" Value="5"/>
+            <Setter Property="MinWidth" Value="5"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="ResizeDirection" Value="Columns"/>
+        </Style>
+        <Style Selector="GridSplitter.pane:pointerover">
+            <Setter Property="Background" Value="{DynamicResource Rule}"/>
+        </Style>
+    </Window.Styles>
+
     <DockPanel>
 
         <!-- Mode tabs. -->
@@ -24,16 +105,23 @@
             </StackPanel>
         </Border>
 
-        <!-- Toolbar. Everything but Open folder waits for an album. -->
+        <!-- Toolbar. -->
         <Border DockPanel.Dock="Top" Background="{DynamicResource Bar}"
                 BorderBrush="{DynamicResource Rule}" BorderThickness="0,0,0,1" Padding="16,10">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
-                    <Button Classes="tool" Content="Raw frames" IsEnabled="False"/>
+                    <Border BorderBrush="{DynamicResource Edge}" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
+                        <StackPanel Orientation="Horizontal">
+                            <ToggleButton x:Name="FieldsButton" Classes="seg" Content="Fields" IsChecked="True" Click="OnFieldsView"/>
+                            <ToggleButton x:Name="RawButton" Classes="seg" Content="Raw frames" Click="OnRawView"/>
+                        </StackPanel>
+                    </Border>
                     <Button Classes="tool" Content="Undo" IsEnabled="False"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Classes="tool" Content="Open folder…"/>
+                    <Button Classes="tool" Content="Open folder…" Click="OnOpenFolder"/>
+                    <TextBlock x:Name="RootText" Classes="mono soft" FontSize="12" VerticalAlignment="Center" Margin="4,0"
+                               MaxWidth="320" TextTrimming="PrefixCharacterEllipsis"/>
                     <Border Width="1" Height="22" Background="{DynamicResource Rule}" Margin="4,0"/>
                     <Button Classes="tool" Content="Look up on MusicBrainz" IsEnabled="False"/>
                     <Button Classes="tool" Content="Find art…" IsEnabled="False"/>
@@ -42,7 +130,7 @@
             </DockPanel>
         </Border>
 
-        <!-- Status bar: the rules, always on screen. -->
+        <!-- Status bar. -->
         <Border DockPanel.Dock="Bottom" Background="{DynamicResource Bar}"
                 BorderBrush="{DynamicResource Rule}" BorderThickness="0,1,0,0" Padding="16,7">
             <DockPanel>
@@ -50,46 +138,293 @@
                 <StackPanel Orientation="Horizontal" Spacing="16">
                     <StackPanel Orientation="Horizontal" Spacing="5">
                         <TextBlock Classes="mono" Foreground="{DynamicResource OkText}" Text="●"/>
-                        <TextBlock Classes="mono soft" Text="backup: tags + art saved before every write"/>
+                        <TextBlock Classes="mono soft" Text="read only: nothing is written in this version"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="5">
                         <TextBlock Classes="mono" Foreground="{DynamicResource OkText}" Text="●"/>
                         <TextBlock Classes="mono soft" Text="audio data: never touched"/>
                     </StackPanel>
-                    <TextBlock Classes="mono soft" Text="undo: 0"/>
+                    <TextBlock x:Name="ScanText" Classes="mono soft"/>
                 </StackPanel>
             </DockPanel>
         </Border>
 
-        <Grid ColumnDefinitions="260,*,320">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="270" MinWidth="200" MaxWidth="480"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*" MinWidth="460"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="340" MinWidth="240" MaxWidth="720"/>
+            </Grid.ColumnDefinitions>
 
             <!-- Library. -->
             <Border Grid.Column="0" Background="{DynamicResource Panel}"
-                    BorderBrush="{DynamicResource Rule}" BorderThickness="0,0,1,0" Padding="16,14">
-                <StackPanel Spacing="10">
-                    <TextBlock Classes="label" Text="LIBRARY"/>
-                    <TextBlock Classes="dim" TextWrapping="Wrap" LineHeight="19"
-                               Text="Open a folder of albums: FLAC, MP3 or M4A, made by anything."/>
-                </StackPanel>
+                    BorderBrush="{DynamicResource Rule}" BorderThickness="0,0,1,0" Padding="0,14,0,0">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Spacing="10" Margin="16,0,16,10">
+                        <DockPanel>
+                            <TextBlock x:Name="AlbumCount" DockPanel.Dock="Right" Classes="mono dim"/>
+                            <TextBlock Classes="label" Text="LIBRARY"/>
+                        </DockPanel>
+                        <TextBox x:Name="FilterBox" PlaceholderText="Filter by artist or album" FontSize="12" Height="32"
+                                 TextChanged="OnFilterChanged"/>
+                        <WrapPanel x:Name="Chips" Orientation="Horizontal">
+                            <ToggleButton x:Name="ChipAll" Classes="chip" Content="All" IsChecked="True" Click="OnChip" Margin="0,0,6,6"/>
+                            <ToggleButton x:Name="ChipFlac" Classes="chip" Content="FLAC" Click="OnChip" Margin="0,0,6,6"/>
+                            <ToggleButton x:Name="ChipMp3" Classes="chip" Content="MP3" Click="OnChip" Margin="0,0,6,6"/>
+                            <ToggleButton x:Name="ChipM4a" Classes="chip" Content="M4A" Click="OnChip" Margin="0,0,6,6"/>
+                            <ToggleButton x:Name="ChipWork" Classes="chip" Content="Needs work" Click="OnChip" Margin="0,0,6,6"/>
+                        </WrapPanel>
+                        <WrapPanel Orientation="Horizontal">
+                            <TextBlock x:Name="CleanCount" Classes="mono" Foreground="{DynamicResource OkText}" Margin="0,0,10,2"/>
+                            <TextBlock x:Name="FixableCount" Classes="mono" Foreground="{DynamicResource WarnText}" Margin="0,0,10,2"/>
+                            <TextBlock x:Name="MissingCount" Classes="mono" Foreground="{DynamicResource BadText}" Margin="0,0,10,2"/>
+                        </WrapPanel>
+                    </StackPanel>
+                    <Panel>
+                        <TextBlock x:Name="LibraryHint" Classes="dim" TextWrapping="Wrap" LineHeight="19" Margin="16,0"
+                                   Text="Open a folder of albums: FLAC, MP3 or M4A, made by anything."/>
+                        <ListBox x:Name="AlbumList" SelectionChanged="OnAlbumSelected">
+                            <ListBox.Styles>
+                                <Style Selector="ListBoxItem:selected">
+                                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="BorderThickness" Value="3,0,0,0"/>
+                                </Style>
+                            </ListBox.Styles>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="app:AlbumRow">
+                                    <StackPanel Margin="16,8,16,8" Spacing="3" ToolTip.Tip="{Binding Folder}">
+                                        <DockPanel>
+                                            <Border DockPanel.Dock="Right" BorderBrush="{DynamicResource Edge}" BorderThickness="1"
+                                                    CornerRadius="3" Padding="4,0" VerticalAlignment="Center">
+                                                <TextBlock Classes="mono soft" FontSize="10" Text="{Binding Formats}"/>
+                                            </Border>
+                                            <TextBlock Text="{Binding Title}" FontWeight="Medium" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+                                        </DockPanel>
+                                        <DockPanel>
+                                            <Border DockPanel.Dock="Right" Classes="pill" Background="{Binding SummaryFill}">
+                                                <TextBlock Classes="mono" Foreground="{Binding SummaryText}" Text="{Binding Summary}"/>
+                                            </Border>
+                                            <TextBlock Classes="dim" FontSize="12" Text="{Binding ArtistYear}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+                                        </DockPanel>
+                                        <!-- Two albums with one title and artist: which folder is which. -->
+                                        <TextBlock Classes="mono dim" Text="{Binding FolderName}" IsVisible="{Binding ShowFolder}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Panel>
+                </DockPanel>
             </Border>
 
             <!-- Album. -->
-            <Border Grid.Column="1" Padding="20,18">
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="420">
+            <Panel Grid.Column="2">
+                <StackPanel x:Name="EmptyAlbum" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" MaxWidth="420">
                     <TextBlock Text="No album open" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center"/>
                     <TextBlock Classes="dim" TextWrapping="Wrap" TextAlignment="Center" LineHeight="19"
-                               Text="Every change you make waits in Pending until you press Write. Nothing touches a file before then."/>
+                               Text="Every change you make will wait in Pending until you press Write. Nothing touches a file before then."/>
                 </StackPanel>
-            </Border>
 
-            <!-- Art. -->
-            <Border Grid.Column="2" Background="{DynamicResource Panel}"
-                    BorderBrush="{DynamicResource Rule}" BorderThickness="1,0,0,0" Padding="16,14">
-                <StackPanel Spacing="10">
-                    <TextBlock Classes="label" Text="ART"/>
-                    <TextBlock Classes="dim" TextWrapping="Wrap" LineHeight="19"
-                               Text="The cover, the back and the art inside each file, side by side."/>
-                </StackPanel>
+                <ScrollViewer x:Name="AlbumView" IsVisible="False" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="20,18" Spacing="16">
+                        <DockPanel>
+                            <StackPanel Spacing="4">
+                                <TextBlock x:Name="AlbumTitle" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="AlbumLine" Classes="dim"/>
+                                <TextBlock x:Name="AlbumFolder" Classes="mono dim" TextTrimming="PrefixCharacterEllipsis"/>
+                                <WrapPanel x:Name="AlbumChips" Margin="-6,4,0,0"/>
+                            </StackPanel>
+                        </DockPanel>
+
+                        <!-- Album fields, or the raw frames of the selected track. -->
+                        <Border x:Name="FieldsCard" Classes="card">
+                            <StackPanel>
+                                <Border Classes="head">
+                                    <Grid ColumnDefinitions="150,*,270">
+                                        <TextBlock Classes="th" Text="ALBUM FIELD"/>
+                                        <TextBlock x:Name="ValuesHeader" Grid.Column="1" Classes="th" Text="VALUE ACROSS FILES"/>
+                                        <TextBlock Grid.Column="2" Classes="th" Text="STORED AS"/>
+                                    </Grid>
+                                </Border>
+                                <ItemsControl x:Name="FieldList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="app:FieldRow">
+                                            <Border BorderBrush="{DynamicResource RowRule}" BorderThickness="0,0,0,1" Padding="14,8">
+                                                <Grid ColumnDefinitions="150,*,270">
+                                                    <TextBlock Classes="soft" Text="{Binding Label}" VerticalAlignment="Center"/>
+                                                    <WrapPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
+                                                        <TextBlock Classes="mono" FontSize="12" Foreground="{Binding ValueText}" Text="{Binding Value}"
+                                                                   TextWrapping="Wrap" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                                        <Border Classes="pill" Background="{Binding NoteFill}" IsVisible="{Binding HasNote}">
+                                                            <TextBlock Classes="mono" Foreground="{Binding NoteText}" Text="{Binding Note}"/>
+                                                        </Border>
+                                                    </WrapPanel>
+                                                    <TextBlock Grid.Column="2" Classes="mono soft" Text="{Binding Key}"
+                                                               TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <Border x:Name="RawCard" Classes="card" IsVisible="False">
+                            <StackPanel>
+                                <Border Classes="head">
+                                    <DockPanel>
+                                        <TextBlock x:Name="RawFileName" DockPanel.Dock="Right" Classes="mono soft"/>
+                                        <Grid ColumnDefinitions="200,*">
+                                            <TextBlock Classes="th" Text="KEY"/>
+                                            <TextBlock Grid.Column="1" Classes="th" Text="VALUE, AS STORED"/>
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
+                                <ItemsControl x:Name="RawList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="app:RawRow">
+                                            <Border BorderBrush="{DynamicResource RowRule}" BorderThickness="0,0,0,1" Padding="14,6">
+                                                <Grid ColumnDefinitions="200,*">
+                                                    <TextBlock Classes="mono soft" FontSize="12" Text="{Binding Key}" TextWrapping="Wrap" Margin="0,0,10,0"/>
+                                                    <TextBlock Grid.Column="1" Classes="mono" FontSize="12" Text="{Binding Value}"
+                                                               Foreground="{Binding ValueText}" TextDecorations="{Binding Decorations}" TextWrapping="Wrap"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Tracks. -->
+                        <Border Classes="card">
+                            <StackPanel>
+                                <Border Classes="head">
+                                    <Grid ColumnDefinitions="34,*,58,120,72,78,180">
+                                        <TextBlock Classes="th" Text="#"/>
+                                        <TextBlock Grid.Column="1" Classes="th" Text="TITLE"/>
+                                        <TextBlock Grid.Column="2" Classes="th" Text="TIME" HorizontalAlignment="Right" Margin="0,0,12,0"/>
+                                        <TextBlock Grid.Column="3" Classes="th" Text="TAGS"/>
+                                        <TextBlock Grid.Column="4" Classes="th" Text="ART"/>
+                                        <TextBlock Grid.Column="5" Classes="th" Text="LYRICS"/>
+                                        <TextBlock Grid.Column="6" Classes="th" Text="CHECK"/>
+                                    </Grid>
+                                </Border>
+                                <ListBox x:Name="TrackList" SelectionChanged="OnTrackSelected">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="app:TrackRow">
+                                            <Border BorderBrush="{DynamicResource RowRule}" BorderThickness="0,0,0,1" Padding="14,7">
+                                                <Grid ColumnDefinitions="34,*,58,120,72,78,180">
+                                                    <TextBlock Classes="mono dim" FontSize="12" Text="{Binding Number}" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                    <TextBlock Grid.Column="2" Classes="mono soft" FontSize="12" Text="{Binding Time}"
+                                                               HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                                    <TextBlock Grid.Column="3" Classes="mono soft" Text="{Binding Tags}" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="4" Classes="mono" Foreground="{Binding ArtText}" Text="{Binding Art}" VerticalAlignment="Center"/>
+                                                    <Border Grid.Column="5" Classes="pill" Background="{Binding LyricsFill}" HorizontalAlignment="Left">
+                                                        <TextBlock Classes="mono" Foreground="{Binding LyricsText}" Text="{Binding Lyrics}"/>
+                                                    </Border>
+                                                    <Border Grid.Column="6" Classes="pill" Background="{Binding CheckFill}" HorizontalAlignment="Left">
+                                                        <TextBlock Classes="mono" Foreground="{Binding CheckText}" Text="{Binding Check}" TextTrimming="CharacterEllipsis"/>
+                                                    </Border>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Album checks: those not about one track. -->
+                        <WrapPanel x:Name="AlbumChecks"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Panel>
+
+            <!-- Art and the selected file. -->
+            <!-- Drag handles: the library and the art panel can be made wider
+                 or narrower (his ask, 2026-10-31). -->
+            <GridSplitter Grid.Column="1" Classes="pane"/>
+            <GridSplitter Grid.Column="3" Classes="pane"/>
+
+            <Border Grid.Column="4" Background="{DynamicResource Panel}"
+                    BorderBrush="{DynamicResource Rule}" BorderThickness="1,0,0,0">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="16,14" Spacing="14">
+                        <TextBlock Classes="label" Text="ART"/>
+                        <TextBlock x:Name="ArtHint" Classes="dim" TextWrapping="Wrap" LineHeight="19"
+                                   Text="The cover, the back and the art inside each file, side by side."/>
+                        <!-- The cover, then the back at its own proportions, both
+                             the panel's width; the embedded art only when some file
+                             carries it (2026-10-31, his call: an empty "embedded"
+                             box on every Deadwax rip was most of the panel). -->
+                        <StackPanel x:Name="ArtGrid" Spacing="14" IsVisible="False">
+                            <StackPanel Spacing="6">
+                                <Border Background="{DynamicResource Bar}" BorderBrush="{DynamicResource Rule}" BorderThickness="1"
+                                        CornerRadius="4" ClipToBounds="True">
+                                    <Panel>
+                                        <TextBlock x:Name="CoverNone" Classes="mono" Foreground="{DynamicResource BadText}" Height="160"
+                                                   HorizontalAlignment="Center" TextAlignment="Center" Padding="0,72,0,0"/>
+                                        <Image x:Name="CoverImage" Stretch="Uniform"/>
+                                    </Panel>
+                                </Border>
+                                <DockPanel>
+                                    <Border x:Name="CoverPill" DockPanel.Dock="Right" Classes="pill">
+                                        <TextBlock x:Name="CoverStatus" Classes="mono"/>
+                                    </Border>
+                                    <StackPanel Spacing="1">
+                                        <TextBlock x:Name="CoverName" FontSize="12" FontWeight="Medium"/>
+                                        <TextBlock x:Name="CoverInfo" Classes="mono soft"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </StackPanel>
+
+                            <StackPanel Spacing="6">
+                                <Border x:Name="BackFrame" Background="{DynamicResource Bar}" BorderBrush="{DynamicResource Rule}"
+                                        BorderThickness="1" CornerRadius="4" ClipToBounds="True">
+                                    <Image x:Name="BackImage" Stretch="Uniform"/>
+                                </Border>
+                                <DockPanel>
+                                    <Border x:Name="BackPill" DockPanel.Dock="Right" Classes="pill">
+                                        <TextBlock x:Name="BackStatus" Classes="mono"/>
+                                    </Border>
+                                    <StackPanel Spacing="1">
+                                        <TextBlock Text="back.jpg" FontSize="12" FontWeight="Medium"/>
+                                        <TextBlock x:Name="BackInfo" Classes="mono soft"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </StackPanel>
+
+                            <DockPanel x:Name="EmbeddedRow">
+                                <Border DockPanel.Dock="Left" Width="72" Height="72" Margin="0,0,12,0" Background="{DynamicResource Bar}"
+                                        BorderBrush="{DynamicResource Rule}" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
+                                    <Image x:Name="EmbeddedImage" Stretch="Uniform"/>
+                                </Border>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Embedded" FontSize="12" FontWeight="Medium"/>
+                                    <TextBlock x:Name="EmbeddedInfo" Classes="mono" TextWrapping="Wrap" LineHeight="15"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </StackPanel>
+
+                        <Border Height="1" Background="{DynamicResource RowRule}"/>
+
+                        <TextBlock Classes="label" Text="SELECTED FILE"/>
+                        <TextBlock x:Name="FileName" Classes="mono" FontSize="12" TextWrapping="Wrap"/>
+                        <ItemsControl x:Name="FileFacts">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="app:RawRow">
+                                    <Grid ColumnDefinitions="78,*" Margin="0,1">
+                                        <TextBlock Classes="mono dim" Text="{Binding Key}"/>
+                                        <TextBlock Grid.Column="1" Classes="mono" Text="{Binding Value}" TextWrapping="Wrap"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
             </Border>
         </Grid>
     </DockPanel>
