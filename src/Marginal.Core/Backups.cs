@@ -1,9 +1,10 @@
 // Marginal — keeping the backup folder in check.
 //
-// A backup is a whole original file (TagWriter), so they add up: two test
-// writes of one album each came to 364 MB (2026-10-31). Kept for a set time,
-// then pruned; their size is always on screen, and they can be emptied.
-// Emptying gives up Undo for every write in them, so the window asks first.
+// A backup is the bytes around a file's audio (TagWriter): about 100 KB for a
+// FLAC album without embedded art. (It was the whole original until
+// 2026-10-31: two test writes came to 364 MB.) Kept a year, then pruned;
+// their size is always on screen, and they can be emptied. Emptying gives up
+// Undo for every write in them, so the window asks first.
 
 namespace Marginal.Core;
 
@@ -12,8 +13,9 @@ public sealed record BackupBatch(string Folder, DateTime Time, long Bytes, int F
 
 public static class Backups
 {
-    /// How long a write's originals are kept before pruning.
-    public static readonly TimeSpan Keep = TimeSpan.FromDays(30);
+    /// How long a write stays undoable before its backup is pruned (Dave's
+    /// choice, 2026-10-31, once backups were small).
+    public static readonly TimeSpan Keep = TimeSpan.FromDays(365);
 
     public static IReadOnlyList<BackupBatch> List(string? root = null)
     {

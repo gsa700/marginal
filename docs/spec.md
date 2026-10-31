@@ -241,8 +241,11 @@ Dark mode to follow the system, with the same meanings.
 1. **Backups live in a central folder** in Marginal's data directory
    (macOS `~/Library/Application Support/marginal/backups`, Linux
    `~/.local/share/marginal/backups`, Windows `%LOCALAPPDATA%\marginal\backups`),
-   one folder per write. A backup is the original file itself, moved aside
-   unchanged, so Undo is exact. Nothing extra appears in the music library for
+   one folder per write. A backup is the bytes before and after a file's
+   audio (tags, pictures, padding) with hashes of the whole file and its
+   audio: about 100 KB for a FLAC album. Undo rebuilds the original exactly
+   from them and the unchanged audio, and refuses a file whose audio has
+   changed since. Kept a year, then pruned. Nothing extra appears in the music library for
    Navidrome, sync jobs or other players to pick up. Undo works from there.
 2. **Library-wide actions, with a preview.** Actions work on the open album
    by default; "Clean junk tags" and the like can also run across the

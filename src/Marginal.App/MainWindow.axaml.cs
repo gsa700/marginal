@@ -289,7 +289,7 @@ public sealed partial class MainWindow : Window
         EditBar.IsVisible = false;
     }
 
-    /// The lookup sheet; what he ticks there joins this album's Pending.
+    /// The lookup sheet; what is ticked there joins this album's Pending.
     private async void OnLookup(object? sender, RoutedEventArgs e)
     {
         if (_album is not { } album) return;
@@ -474,10 +474,10 @@ public sealed partial class MainWindow : Window
         var list = Backups.List();
         var bytes = list.Sum(b => b.Bytes);
         BackupText.Text = bytes == 0
-            ? "backups: the original of every file is kept before a write"
-            : $"backups: {TrackReader.Bytes(bytes)} from {list.Count} write{(list.Count == 1 ? "" : "s")}, kept {Backups.Keep.Days} days";
+            ? "backups: every write can be undone for a year"
+            : $"backups: {TrackReader.Bytes(bytes)} from {list.Count} write{(list.Count == 1 ? "" : "s")}, kept a year";
         EmptyBackupsButton.IsVisible = bytes > 0;
-        EmptyQuestion.Text = $"Delete the originals kept from {list.Count} write{(list.Count == 1 ? "" : "s")} ({TrackReader.Bytes(bytes)})? "
+        EmptyQuestion.Text = $"Delete the backups of {list.Count} write{(list.Count == 1 ? "" : "s")} ({TrackReader.Bytes(bytes)})? "
                              + "Those writes can no longer be undone. Your music is not touched.";
     }
 
@@ -523,7 +523,7 @@ public sealed partial class MainWindow : Window
         var cover = album.Cover;
         // No cover.jpg but art inside the files (the usual iTunes or store
         // library): the embedded cover takes the main spot, the selected
-        // track's, set by ShowEmbeddedArt (his question, 2026-10-31).
+        // track's, set by ShowEmbeddedArt (Dave's question, 2026-10-31).
         var firstEmbedded = album.Tracks.Select(t => t.EmbeddedCover()).OfType<EmbeddedPicture>().FirstOrDefault();
         var embeddedIsMain = cover is null && firstEmbedded is not null;
         CoverName.Text = cover?.Name ?? (embeddedIsMain ? "Embedded (no cover.jpg)" : "cover.jpg");

@@ -118,22 +118,55 @@ public sealed class WriterTests : IDisposable
     }
 
     [Fact]
-    public void Keeps_the_original_and_undo_puts_it_back_byte_for_byte()
+    public void Backs_up_only_what_is_not_audio_and_undo_rebuilds_it_byte_for_byte()
     {
         var path = FilePath("02");
         var original = Sha(path);
+        var size = new FileInfo(path).Length;
         var result = Write(Pending.SetField(Read(), FieldMap.AlbumArtist, "Fixture Band"));
         Assert.NotEqual(original, Sha(path));
 
         var batch = TagWriter.Latest(_backups);
         Assert.NotNull(batch);
-        var (_, backup) = Assert.Single(batch!.Files);
-        Assert.Equal(original, Sha(backup));                  // the backup IS the original
+        var entry = Assert.Single(batch!.Files);
+        Assert.Equal(original, entry.Sha256);
+        // The ID3v2 tag in front and the ID3v1 tag behind: no audio at all.
+        var (start, end) = (new FileInfo(entry.Head).Length, new FileInfo(entry.Tail).Length);
+        Assert.Equal(128, end);
+        Assert.True(start + end < size / 4, $"backup {start + end} bytes of a {size}-byte file");
 
         Assert.Empty(TagWriter.Undo(batch));
         Assert.Equal(original, Sha(path));
         Assert.Null(TagWriter.Latest(_backups));              // nothing left to undo
         Assert.NotNull(result.Batch);
+    }
+
+    [Fact]
+    public void Undo_refuses_a_file_whose_audio_changed_since()
+    {
+        var path = FilePath("01");
+        Write(Pending.SetField(Read(), FieldMap.Genre, "Blues"));
+        // Something else rewrites the audio after the write (a re-rip, say).
+        var (start, end) = TagWriter.AudioRange(path);
+        var bytes = File.ReadAllBytes(path);
+        bytes[(start + end) / 2] ^= 0x01;
+        File.WriteAllBytes(path, bytes);
+        var changed = Sha(path);
+
+        var problems = TagWriter.Undo(TagWriter.Latest(_backups)!);
+        Assert.Contains(problems, p => p.File == "01 First.flac" && p.Problem.Contains("audio has changed"));
+        Assert.Equal(changed, Sha(path));                     // left exactly as it was
+    }
+
+    [Fact]
+    public void Several_writes_undo_in_turn_back_to_the_start()
+    {
+        var shas = Directory.GetFiles(_album).ToDictionary(f => f, Sha);
+        Write(Pending.SetField(Read(), FieldMap.Genre, "Blues"));
+        Write(Pending.SetField(Read(), FieldMap.Label, "Vertigo"));
+        Write(Pending.CleanJunk(Read()));
+        while (TagWriter.Latest(_backups) is { } batch) Assert.Empty(TagWriter.Undo(batch));
+        foreach (var (file, sha) in shas) Assert.Equal(sha, Sha(file));
     }
 
     [Fact]
@@ -207,9 +240,10 @@ public sealed class WriterTests : IDisposable
         Assert.All(list, b => Assert.True(b.Bytes > 0));
         Assert.Equal(list.Sum(b => b.Bytes), Backups.Size(_backups));
 
-        // Nothing is older than 30 days yet; a month on, both are.
+        // Nothing is older than a year yet; a year and a day on, both are.
         Assert.Equal(0, Backups.Prune(Backups.Keep, _backups).Writes);
-        Assert.Equal(2, Backups.Prune(Backups.Keep, _backups, DateTime.Now.AddDays(31)).Writes);
+        Assert.Equal(0, Backups.Prune(Backups.Keep, _backups, DateTime.Now.AddDays(364)).Writes);
+        Assert.Equal(2, Backups.Prune(Backups.Keep, _backups, DateTime.Now.AddDays(366)).Writes);
         Assert.Empty(Backups.List(_backups));
 
         Write(Pending.SetField(Read(), FieldMap.Genre, "Rock"));
@@ -261,6 +295,8 @@ public sealed class WriterTests : IDisposable
         var result = TagWriter.Write(changes, _backups);
         Assert.Empty(result.Problems);
         Assert.All(AlbumReader.Read(copy).Tracks, t => Assert.Equal("Marginal test", t.Get(FieldMap.Genre)));
+        var bytes = shas.Keys.Sum(f => new FileInfo(f).Length);
+        Assert.True(Backups.Size(_backups) * 100 < bytes, $"backups {Backups.Size(_backups)} bytes for a {bytes}-byte album");
 
         Assert.Empty(TagWriter.Undo(TagWriter.Latest(_backups)!));
         foreach (var (file, sha) in shas) Assert.Equal(sha, Sha(file));

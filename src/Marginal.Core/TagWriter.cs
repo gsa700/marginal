@@ -1,18 +1,28 @@
 // Marginal — the one place that WRITES to a music file (spec §2, rules 4-7).
 //
-// AlbumWall's TagWriter pattern, with the whole original kept as the backup:
+// AlbumWall's TagWriter pattern, with a backup of everything but the audio:
 //
 //   1. Copy the file to a working copy beside it (same folder, same volume).
 //   2. Make the changes to the copy. The original is never opened for writing.
 //   3. Read the copy back. It must hold what was asked, every other frame as
-//      before, the same pictures, and the same audio bytes (hashed between
-//      TagLib#'s invariant positions: the part of the file no tag covers).
-//      Anything else and the copy is deleted and the file left as it was.
-//   4. Swap by two renames in the folder: original -> "<name>.marginal-old",
-//      copy -> original. A power cut leaves the old file, the new one, or
-//      both, never half of one.
-//   5. Move the old file into this write's backup folder. Undo moves it back,
-//      so an undone file is the original byte for byte.
+//      before, the same pictures, and the same audio bytes (AudioRange: the
+//      part of the file no tag covers). Anything else and the copy is deleted
+//      and the file left as it was.
+//   4. Back up what the write may change: the original's bytes BEFORE its
+//      audio and AFTER it (tags, pictures, padding, an MP4's boxes), with a
+//      hash of the whole original and of its audio. Since the audio is proven
+//      the same, that is all it takes to rebuild the original exactly.
+//   5. Swap by two renames in the folder: original -> "<name>.marginal-old",
+//      copy -> original; then the old file goes. A power cut leaves the old
+//      file, the new one, or both, never half of one.
+//
+// Undo rebuilds: old front + the file's current audio + old back, into a
+// working copy that must hash exactly like the original did, then the same
+// swap. It refuses a file whose audio has changed since (a re-rip): there is
+// nothing to go back to. Backups used to be the whole original moved aside:
+// two test writes of a FLAC album came to 364 MB; this way an album is a few
+// hundred KB at most, art included (Dave's idea, 2026-10-31), and they can be
+// kept far longer.
 //
 // THE MODIFIED TIME MOVES, on purpose: backups, sync jobs, Navidrome and
 // AlbumWall's index all learn of the change that way.
@@ -23,9 +33,13 @@ using System.Security.Cryptography;
 
 namespace Marginal.Core;
 
-/// A write: when, and for each file where its original went. One write can
-/// span many albums (a library-wide clean-up), and one Undo takes it all back.
-public sealed record WriteBatch(string BackupFolder, DateTime Time, IReadOnlyList<(string Original, string Backup)> Files)
+/// What one file's backup holds: where the original's front and back bytes
+/// are kept, and the hashes Undo checks against.
+public sealed record BackupEntry(string Original, string Head, string Tail, string Sha256, string AudioSha256);
+
+/// A write: when, and each file's backup. One write can span many albums (a
+/// library-wide clean-up), and one Undo takes it all back.
+public sealed record WriteBatch(string BackupFolder, DateTime Time, IReadOnlyList<BackupEntry> Files)
 {
     public IReadOnlyList<string> Folders => Files.Select(f => Path.GetDirectoryName(f.Original)!).Distinct().ToList();
 }
@@ -51,7 +65,7 @@ public static class TagWriter
     {
         backupRoot ??= DefaultBackupRoot;
         var problems = new List<(string, string)>();
-        var done = new List<(string Original, string Backup)>();
+        var done = new List<BackupEntry>();
         if (changes.Count == 0) return new WriteResult(null, problems);
 
         // Never on a network share (spec §9.6): those files are refused, the rest written.
@@ -69,7 +83,7 @@ public static class TagWriter
         {
             n++;
             var path = group.Key;
-            var temp = Path.Combine(Path.GetDirectoryName(path)!, TempPrefix + Guid.NewGuid().ToString("N")[..8] + Path.GetExtension(path));
+            var temp = TempBeside(path);
             try
             {
                 var before = TrackReader.Read(path);
@@ -85,12 +99,10 @@ public static class TagWriter
                 if (Verify(path, temp, before, group.ToList()) is { } problem)
                     throw new IOException(problem);
 
-                var backup = Path.Combine(batchFolder, $"{n:D3} {Path.GetFileName(path)}");
-                var old = path + OldSuffix;
-                System.IO.File.Move(path, old);
-                System.IO.File.Move(temp, path);
-                System.IO.File.Move(old, backup);
-                done.Add((path, backup));
+                // The backup is on disk before the original is touched.
+                var entry = SaveBackup(path, batchFolder, $"{n:D3} {Path.GetFileName(path)}");
+                Swap(path, temp);
+                done.Add(entry);
             }
             catch (Exception ex)
             {
@@ -101,15 +113,17 @@ public static class TagWriter
 
         if (done.Count == 0)
         {
-            try { Directory.Delete(batchFolder); } catch (IOException) { }
+            try { Directory.Delete(batchFolder, recursive: true); } catch (IOException) { }
             return new WriteResult(null, problems);
         }
         var batch = new WriteBatch(batchFolder, time, done);
-        System.IO.File.WriteAllLines(Path.Combine(batchFolder, Manifest), done.Select(d => $"{d.Original}\t{Path.GetFileName(d.Backup)}"));
+        System.IO.File.WriteAllLines(Path.Combine(batchFolder, Manifest),
+            done.Select(d => string.Join('\t', d.Original, Path.GetFileName(d.Head), Path.GetFileName(d.Tail), d.Sha256, d.AudioSha256)));
         return new WriteResult(batch, problems);
     }
 
-    /// The newest write not yet undone, for the Undo button.
+    /// The newest write not yet undone, for the Undo button. Older ones come
+    /// after it, one Undo at a time.
     public static WriteBatch? Latest(string? backupRoot = null)
     {
         backupRoot ??= DefaultBackupRoot;
@@ -119,8 +133,8 @@ public static class TagWriter
             var manifest = Path.Combine(dir, Manifest);
             if (!System.IO.File.Exists(manifest)) continue;
             var files = System.IO.File.ReadAllLines(manifest)
-                .Select(l => l.Split('\t')).Where(p => p.Length == 2)
-                .Select(p => (p[0], Path.Combine(dir, p[1]))).ToList();
+                .Select(l => l.Split('\t')).Where(p => p.Length == 5)
+                .Select(p => new BackupEntry(p[0], Path.Combine(dir, p[1]), Path.Combine(dir, p[2]), p[3], p[4])).ToList();
             if (files.Count == 0) continue;
             var time = DateTime.TryParseExact(Path.GetFileName(dir), "yyyyMMdd-HHmmss-fff", null,
                 System.Globalization.DateTimeStyles.None, out var t) ? t : Directory.GetCreationTime(dir);
@@ -129,30 +143,94 @@ public static class TagWriter
         return null;
     }
 
-    /// Puts every original of `batch` back where it was. The files it replaces
-    /// (what Write made) are kept in the batch's "undone" folder, so an Undo
-    /// can itself be reversed by hand.
+    /// Rebuilds every original of `batch` in place: its old front and back
+    /// around the file's audio as it is now, checked against the original's
+    /// hash before it replaces anything.
     public static IReadOnlyList<(string File, string Problem)> Undo(WriteBatch batch)
     {
         var problems = new List<(string, string)>();
-        var undone = Path.Combine(batch.BackupFolder, "undone");
-        Directory.CreateDirectory(undone);
-        foreach (var (original, backup) in batch.Files)
+        foreach (var entry in batch.Files)
         {
+            var path = entry.Original;
+            var temp = TempBeside(path);
             try
             {
-                if (!System.IO.File.Exists(backup)) throw new IOException("the backup is gone");
-                if (System.IO.File.Exists(original))
-                    System.IO.File.Move(original, Path.Combine(undone, Path.GetFileName(backup)));
-                System.IO.File.Move(backup, original);
+                if (!System.IO.File.Exists(path)) throw new IOException("the file is gone");
+                if (!System.IO.File.Exists(entry.Head) || !System.IO.File.Exists(entry.Tail)) throw new IOException("the backup is gone");
+                if (AudioHash(path) is not { } audio || Convert.ToHexString(audio) != entry.AudioSha256)
+                    throw new IOException("its audio has changed since the write, so there is nothing to go back to");
+
+                var (start, end) = AudioRange(path);
+                using (var output = System.IO.File.Create(temp))
+                {
+                    using (var head = System.IO.File.OpenRead(entry.Head)) head.CopyTo(output);
+                    using (var input = System.IO.File.OpenRead(path))
+                    {
+                        input.Position = start;
+                        CopyBytes(input, output, end - start);
+                    }
+                    using (var tail = System.IO.File.OpenRead(entry.Tail)) tail.CopyTo(output);
+                }
+                if (FileHash(temp) != entry.Sha256) throw new IOException("the rebuilt file does not match the original");
+                Swap(path, temp);
             }
             catch (Exception ex)
             {
-                problems.Add((Path.GetFileName(original), ex.Message));
+                try { if (System.IO.File.Exists(temp)) System.IO.File.Delete(temp); } catch (IOException) { }
+                problems.Add((Path.GetFileName(path), ex.Message));
             }
         }
         System.IO.File.Move(Path.Combine(batch.BackupFolder, Manifest), Path.Combine(batch.BackupFolder, "manifest.undone.tsv"));
         return problems;
+    }
+
+    // ---- backup and swap ------------------------------------------------------
+
+    private static string TempBeside(string path) =>
+        Path.Combine(Path.GetDirectoryName(path)!, TempPrefix + Guid.NewGuid().ToString("N")[..8] + Path.GetExtension(path));
+
+    /// Saves the bytes before and after the audio, and the hashes.
+    private static BackupEntry SaveBackup(string path, string folder, string name)
+    {
+        var (start, end) = AudioRange(path);
+        if (start < 0 || end <= start) throw new IOException("the audio could not be found for the backup");
+        var head = Path.Combine(folder, name + ".head");
+        var tail = Path.Combine(folder, name + ".tail");
+        using (var input = System.IO.File.OpenRead(path))
+        {
+            using (var h = System.IO.File.Create(head)) { CopyBytes(input, h, start); h.Flush(flushToDisk: true); }
+            input.Position = end;
+            using (var t = System.IO.File.Create(tail)) { input.CopyTo(t); t.Flush(flushToDisk: true); }
+        }
+        var audio = AudioHash(path) ?? throw new IOException("the audio could not be hashed for the backup");
+        return new BackupEntry(path, head, tail, FileHash(path), Convert.ToHexString(audio));
+    }
+
+    /// `temp` takes `path`'s place: two renames, then the old file goes.
+    private static void Swap(string path, string temp)
+    {
+        var old = path + OldSuffix;
+        System.IO.File.Move(path, old);
+        System.IO.File.Move(temp, path);
+        System.IO.File.Delete(old);
+    }
+
+    private static void CopyBytes(Stream from, Stream to, long count)
+    {
+        var buffer = new byte[1 << 16];
+        while (count > 0)
+        {
+            var read = from.Read(buffer, 0, (int)Math.Min(buffer.Length, count));
+            if (read <= 0) throw new IOException("the file ended early");
+            to.Write(buffer, 0, read);
+            count -= read;
+        }
+    }
+
+    public static string FileHash(string path)
+    {
+        using var stream = System.IO.File.OpenRead(path);
+        return Convert.ToHexString(SHA256.HashData(stream));
     }
 
     // ---- making a change ----------------------------------------------------

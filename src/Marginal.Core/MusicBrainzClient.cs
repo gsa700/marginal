@@ -5,7 +5,7 @@
 //
 // Used the way MusicBrainz asks: a real User-Agent, at most one request a
 // second, 503 ("slow down") retried with a growing pause. Only a 404 means
-// "no such thing". Asked only when he presses Search or picks a release
+// "no such thing". Asked only on Search or when a release is picked
 // (spec §5), never in the background.
 
 using System.Net;

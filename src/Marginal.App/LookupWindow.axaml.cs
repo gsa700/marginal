@@ -139,7 +139,7 @@ public sealed partial class LookupWindow : Window
 
     private void OnYearChanged(object? sender, RoutedEventArgs e) => ShowTake();
 
-    /// The checklist, keeping what he ticked or unticked across a year change.
+    /// The checklist, keeping what was ticked or unticked across a year change.
     private void ShowTake()
     {
         if (_release is null) return;
@@ -148,7 +148,7 @@ public sealed partial class LookupWindow : Window
         var items = Lookup.Take(_album, _release, _pairs, FirstReleaseRadio.IsChecked == true);
         // A release that fits badly starts with nothing ticked: the 2-CD
         // "×2: Facelift / Alice in Chains" fits a Facelift rip at 50%, and its
-        // year is the compilation's (2026-10-31). He can still tick by hand.
+        // year is the compilation's (2026-10-31). Ticking by hand still works.
         var trusted = Lookup.FitPercent(_pairs) >= GoodFit;
         var rows = items.Select((item, i) => new TakeRow(item, i,
             before is not null && before.TryGetValue(i, out var on) ? on && item.Changes.Count > 0 : item.On && trusted)).ToList();

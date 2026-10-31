@@ -26,8 +26,10 @@ What comes next, in order. The spec is `docs/spec.md`.
 2b. **Library-wide actions and backup upkeep.** *Done 2026-10-31: tried by
    Dave on copies (clean, Write all, Undo, re-clean).* "Clean junk tags" (and
    the like) across the library, every album and change shown first. Backups
-   are whole files and add up (two test writes: 364 MB): keep them for a set
-   time, show their size, an "Empty backups" button. MP4 junk atoms too.
+   were whole files and added up (two test writes: 364 MB); since 2026-10-31
+   they keep only what is not audio (~100 KB an album), Undo rebuilds the
+   original byte for byte, and they are kept a year. Size on screen, an
+   "Empty backups" button. MP4 junk atoms too.
 3. **MusicBrainz lookup.** *Done 2026-10-31 but for disc IDs and
    per-recording IDs (later): search, pasted links, the files' own release
    first, ranking (every release scores 100, so: tagged, track count, CD

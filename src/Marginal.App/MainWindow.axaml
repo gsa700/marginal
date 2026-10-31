@@ -447,7 +447,7 @@
 
             <!-- Art and the selected file. -->
             <!-- Drag handles: the library and the art panel can be made wider
-                 or narrower (his ask, 2026-10-31). -->
+                 or narrower (Dave's ask, 2026-10-31). -->
             <GridSplitter Grid.Column="1" Classes="pane"/>
             <GridSplitter Grid.Column="3" Classes="pane"/>
 
@@ -460,7 +460,7 @@
                                    Text="The cover, the back and the art inside each file, side by side."/>
                         <!-- The cover, then the back at its own proportions, both
                              the panel's width; the embedded art only when some file
-                             carries it (2026-10-31, his call: an empty "embedded"
+                             carries it (2026-10-31, Dave's call: an empty "embedded"
                              box on every Deadwax rip was most of the panel). -->
                         <StackPanel x:Name="ArtGrid" Spacing="14" IsVisible="False">
                             <StackPanel Spacing="6">
