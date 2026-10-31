@@ -17,6 +17,29 @@ public static class Backups
     /// choice, 2026-10-31, once backups were small).
     public static readonly TimeSpan Keep = TimeSpan.FromDays(365);
 
+    /// Linux backups written before they moved out of the install folder
+    /// (TagWriter.DefaultBackupRoot) go to the new place, once. Nothing is
+    /// moved if the new place already has backups.
+    public static void MoveFromInstallFolder()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        MoveOnce(TagWriter.OldLinuxBackupRoot, TagWriter.DefaultBackupRoot);
+    }
+
+    public static void MoveOnce(string from, string to)
+    {
+        try
+        {
+            if (!Directory.Exists(from) || Directory.Exists(to)) return;
+            Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+            Directory.Move(from, to);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"[backups] could not move {from} to {to}: {e.Message}");
+        }
+    }
+
     public static IReadOnlyList<BackupBatch> List(string? root = null)
     {
         root ??= TagWriter.DefaultBackupRoot;

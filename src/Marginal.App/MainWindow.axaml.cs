@@ -46,6 +46,7 @@ public sealed partial class MainWindow : Window
         UpdateUndo();
         UpdateBackups();
         // Originals older than the keeping time go, quietly, at each start.
+        Backups.MoveFromInstallFolder();
         _ = Task.Run(() => Backups.Prune(Backups.Keep)).ContinueWith(_ => Dispatcher.UIThread.Post(UpdateBackups));
     }
 

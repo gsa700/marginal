@@ -244,7 +244,8 @@ Dark mode to follow the system, with the same meanings.
 
 1. **Backups live in a central folder** in Marginal's data directory
    (macOS `~/Library/Application Support/marginal/backups`, Linux
-   `~/.local/share/marginal/backups`, Windows `%LOCALAPPDATA%\marginal\backups`),
+   `~/.local/state/marginal/backups` (outside the install folder, which an
+   uninstall removes), Windows `%LOCALAPPDATA%\marginal\backups`),
    one folder per write. A backup is the bytes before and after a file's
    audio (tags, pictures, padding) with hashes of the whole file and its
    audio: about 100 KB for a FLAC album. Undo rebuilds the original exactly

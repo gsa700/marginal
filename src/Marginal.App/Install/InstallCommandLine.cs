@@ -77,11 +77,17 @@ public static class InstallCommandLine
     /// <c>/quiet</c> and <c>-quiet</c> all read the same. Windows shortcuts and the installed-apps
     /// entry each have their own habits about switch prefixes.
     /// </summary>
+    /// A word with no prefix is no switch: Marginal takes a folder on its
+    /// command line, so `marginal install` (a folder called install) installed
+    /// and `marginal uninstall quiet` uninstalled without a word (security
+    /// review 2026-10-31, C5). `/quiet` on Linux and macOS is a path, not a
+    /// switch, so `/` counts only on Windows.
     private static string Canonical(string arg)
     {
         var s = arg.Trim();
         if (s.StartsWith("--", StringComparison.Ordinal)) s = s[2..];
-        else if (s.StartsWith('-') || s.StartsWith('/')) s = s[1..];
+        else if (s.StartsWith('-') || (OperatingSystem.IsWindows() && s.StartsWith('/'))) s = s[1..];
+        else return "";
         return s.ToLowerInvariant();
     }
 }

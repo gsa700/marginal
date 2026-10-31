@@ -29,6 +29,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Marginal.Core\Marginal.Core.csproj" />
     <ProjectReference Include="..\..\src\Marginal.Codecs\Marginal.Codecs.csproj" />
+    <!-- The install and update code (Deadwax's protections, ported tests in Installer/). -->
+    <ProjectReference Include="..\..\src\Marginal.App\Marginal.App.csproj" />
   </ItemGroup>
 
 </Project>

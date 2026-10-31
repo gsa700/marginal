@@ -80,9 +80,28 @@ public static class TagWriter
 
     private const string Manifest = "manifest.tsv";
 
-    /// Where backups live (spec §9.1): the app's own data folder, never the library.
-    public static string DefaultBackupRoot =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "marginal", "backups");
+    /// Where backups live (spec §9.1): the app's own data folder, never the
+    /// library. On Linux that is the XDG state folder (~/.local/state), NOT
+    /// ~/.local/share/marginal: the program is installed there, and every
+    /// uninstall deleted the backups with it (security review 2026-10-31, C1).
+    public static string DefaultBackupRoot => BackupRootFor(OperatingSystem.IsLinux());
+
+    public static string BackupRootFor(bool linux)
+    {
+        if (!linux)
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData,
+                Environment.SpecialFolderOption.DoNotVerify), "marginal", "backups");
+        var state = Environment.GetEnvironmentVariable("XDG_STATE_HOME");
+        if (string.IsNullOrEmpty(state) || !Path.IsPathRooted(state))
+            state = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "state");
+        return Path.Combine(state, "marginal", "backups");
+    }
+
+    /// Where Linux backups were kept before 0.1.0's review: inside the
+    /// install folder. Moved once, at start (Backups.MoveFromInstallFolder).
+    public static string OldLinuxBackupRoot =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData,
+            Environment.SpecialFolderOption.DoNotVerify), "marginal", "backups");
 
     public static WriteResult Write(IReadOnlyList<Change> changes, string? backupRoot = null)
     {
