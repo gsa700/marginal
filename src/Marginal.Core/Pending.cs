@@ -196,7 +196,12 @@ public static class Pending
         var result = list.ToList();
         foreach (var c in changes)
         {
-            var i = result.FindIndex(e => e.Path == c.Path && e.Key == c.Key && e.Op == c.Op);
+            // A frame removal is that frame: its key AND value. Several frames
+            // share a key (four or five Windows Media PRIV frames in one MP3),
+            // and matching by key alone kept one removal of them per run
+            // (Dave's lossy library, 2026-10-31).
+            var i = result.FindIndex(e => e.Path == c.Path && e.Key == c.Key && e.Op == c.Op
+                                          && (c.Op != ChangeOp.RemoveFrame || e.From == c.From));
             if (i >= 0)
             {
                 var first = result[i];

@@ -261,3 +261,15 @@ public sealed class Id3v1PolicyTests
         Assert.Equal(junk.Count, Pending.DropId3v1(album, junk).Count);
     }
 }
+
+public sealed class MergeTests
+{
+    [Fact]
+    public void Removals_of_frames_sharing_a_key_all_stay()
+    {
+        Change Priv(string v) => new("/a/01.mp3", ChangeOp.RemoveFrame, ChangeKind.Remove, "PRIV", v, null);
+        var merged = Pending.Merge([], [Priv("WM/WMContentID (16 bytes)"), Priv("WM/UniqueFileIdentifier (114 bytes)"), Priv("WM/Provider (8 bytes)")]);
+        Assert.Equal(3, merged.Count);
+        Assert.Equal(3, Pending.Merge(merged, [Priv("WM/Provider (8 bytes)")]).Count);   // the same one again is one
+    }
+}
