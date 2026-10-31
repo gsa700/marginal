@@ -44,7 +44,7 @@ public sealed partial class ArtWindow : Window
         FrontSlot.IsChecked = slot == ArtSlot.Front;
         BackSlot.IsChecked = slot == ArtSlot.Back;
         AddHandler(DragDrop.DropEvent, OnDrop);
-        Opened += async (_, _) => await LoadCandidates();
+        Opened += async (_, _) => { AddLocal(); await LoadCandidates(); };
         Closed += (_, _) => { _closing.Cancel(); _http.Dispose(); _mb.Dispose(); };
         ShowSlot();
     }
@@ -58,7 +58,7 @@ public sealed partial class ArtWindow : Window
         var ticket = ++_loading;
         var release = _album.Fields.First(f => f.Field == FieldMap.MusicBrainzRelease).Common;
         var group = _album.Fields.First(f => f.Field == FieldMap.MusicBrainzReleaseGroup).Common;
-        _rows = [];
+        _rows = _rows.Where(r => r.Local is not null).ToList();
         ShowSlot();
         if (release is null || !WebLimits.IsMbid(release))
         {
@@ -69,6 +69,9 @@ public sealed partial class ArtWindow : Window
             return;
         }
         Status("asking the Cover Art Archive…", Tones.Dim);
+        Busy(OtherEditions.IsChecked == true
+            ? "Asking the Cover Art Archive: your release first, then other editions of the album…"
+            : "Asking the Cover Art Archive for your release's art…");
         try
         {
             // The release group, for other editions: from the tags, or asked of
@@ -78,7 +81,8 @@ public sealed partial class ArtWindow : Window
             var error = await CoverArtArchive.CandidatesAsync(_http, _mb, release, groupTask, others,
                 found => Dispatcher.UIThread.Post(() => Arrived(ticket, found)), _closing.Token);
             if (ticket != _loading) return;
-            var releases = _rows.Select(r => r.Candidate.ReleaseId).Distinct().Count();
+            Busy(null);
+            var releases = _rows.Where(r => r.Local is null).Select(r => r.Candidate.ReleaseId).Distinct().Count();
             Status(error is not null && _rows.Count == 0 ? error
                    : $"{_rows.Count} image{(_rows.Count == 1 ? "" : "s")} from {releases} release{(releases == 1 ? "" : "s")}" + (error is not null ? $" · {error}" : ""),
                 error is not null ? Tones.WarnText : Tones.OkText);
@@ -86,8 +90,62 @@ public sealed partial class ArtWindow : Window
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is MusicBrainzException or HttpRequestException)
         {
+            Busy(null);
             Status(ex.Message, Tones.BadText);
         }
+    }
+
+    /// The banner over the candidates while the archive is asked: where the
+    /// eye already is (the corner status line alone took a minute to find,
+    /// Dave, 2026-10-31). Null hides it.
+    private void Busy(string? text)
+    {
+        BusyBar.IsVisible = text is not null;
+        if (text is not null) BusyText.Text = text;
+    }
+
+    /// The art the album already has, shown before the archive answers (Dave's
+    /// idea, 2026-10-31): cover.jpg and back.jpg beside the tracks, and the
+    /// cover embedded in the files. No download, and the starting point for
+    /// cropping, resizing or embedding what is already there.
+    private void AddLocal()
+    {
+        var local = new List<ArtRow>();
+        void Add(ArtSlot slot, string where, string name, byte[]? bytes)
+        {
+            if (bytes is null || !ArtImage.LooksLikeAnImage(bytes)) return;
+            var row = new ArtRow(new ArtCandidate("", name, Ours: true, slot, "", $"local:{where}:{name}", 0), bytes, where);
+            try
+            {
+                using var stream = new MemoryStream(bytes);
+                row.Thumbnail = Bitmap.DecodeToWidth(stream, 340);
+            }
+            catch (Exception) { row.Placeholder = "no preview"; }
+            local.Add(row);
+        }
+        byte[]? Read(string name)
+        {
+            try { return File.Exists(Path.Combine(_album.Folder, name)) ? File.ReadAllBytes(Path.Combine(_album.Folder, name)) : null; }
+            catch (IOException) { return null; }
+        }
+        if (_album.Cover is { } cover) Add(ArtSlot.Front, "in the folder", cover.Name, Read(cover.Name));
+        if (_album.Back is { } back) Add(ArtSlot.Back, "in the folder", back.Name, Read(back.Name));
+        if (_album.Tracks.FirstOrDefault(t => t.EmbeddedCover() is not null) is { } track)
+            Add(ArtSlot.Front, "in the files", $"embedded in {track.FileName}", EmbeddedBytes(track.Path));
+        _rows = local.Concat(_rows).ToList();
+        ShowSlot();
+    }
+
+    private static byte[]? EmbeddedBytes(string path)
+    {
+        try
+        {
+            using var file = TagLib.File.Create(path);
+            var picture = file.Tag.Pictures.FirstOrDefault(p => p.Type == TagLib.PictureType.FrontCover && ImageSize.Read(ImageSize.Repair(p.Data.Data)) is not null)
+                          ?? file.Tag.Pictures.FirstOrDefault(p => ImageSize.Read(ImageSize.Repair(p.Data.Data)) is not null);
+            return picture is null ? null : ImageSize.Repair(picture.Data.Data);
+        }
+        catch (Exception) { return null; }
     }
 
     private async Task<string?> GroupOf(string release)
@@ -103,12 +161,16 @@ public sealed partial class ArtWindow : Window
         if (ticket != _loading || found.Count == 0) return;
         var rows = found.Select(c => new ArtRow(c)).ToList();
         _rows.AddRange(rows);
-        // Yours first, then the editions in the order they answered.
-        _rows = _rows.OrderByDescending(r => r.Candidate.Ours).ToList();
+        // The album's own art, then your release's, then the editions in the order they answered.
+        _rows = _rows.OrderByDescending(r => r.Local is not null).ThenByDescending(r => r.Candidate.Ours).ToList();
         var selected = CandidateList.SelectedItem;
         ShowSlot(keepPick: true);
         if (selected is not null) CandidateList.SelectedItem = selected;
         Status($"{_rows.Count} image{(_rows.Count == 1 ? "" : "s")} so far…", Tones.Dim);
+        var editions = _rows.Where(r => r.Local is null && !r.Candidate.Ours).Select(r => r.Candidate.ReleaseId).Distinct().Count();
+        if (BusyBar.IsVisible)
+            Busy(editions == 0 ? "Your release's art is in. Asking about other editions of the album…"
+                               : $"Found art from {editions} other edition{(editions == 1 ? "" : "s")} so far. Still asking…");
         _ = LoadThumbnails(rows);
         foreach (var c in found.Where(c => c.Ours && c.Slot != ArtSlot.Booklet)) Full(c.Image);
     }
@@ -183,6 +245,11 @@ public sealed partial class ArtWindow : Window
         ShapeNote.Text = "";
         _made = null;
         Recount();
+        if (row.Local is { } local)
+        {
+            Pick(local, $"{row.Where}: {row.Candidate.Edition}");
+            return;
+        }
         // The thumbnail shows at once; the full image follows (about 1 MB from
         // archive.org, a few seconds) unless it was fetched ahead.
         var full = Full(row.Candidate.Image);
@@ -271,7 +338,10 @@ public sealed partial class ArtWindow : Window
     {
         if (_made is not { } made) return [];
         var list = new List<Change>();
-        if (SaveBox.IsChecked == true) list.Add(Pending.SaveImage(_album, Slot == ArtSlot.Front ? "cover.jpg" : "back.jpg", made));
+        var name = Slot == ArtSlot.Front ? "cover.jpg" : "back.jpg";
+        var existing = Path.Combine(_album.Folder, name);
+        var same = File.Exists(existing) && new FileInfo(existing).Length == made.Length && File.ReadAllBytes(existing).AsSpan().SequenceEqual(made);
+        if (SaveBox.IsChecked == true && !same) list.Add(Pending.SaveImage(_album, name, made));
         if (Slot == ArtSlot.Front && EmbedBox.IsChecked == true) list.AddRange(Pending.EmbedFront(_album, made));
         return list;
     }
@@ -307,14 +377,21 @@ public sealed partial class ArtWindow : Window
     }
 }
 
-public sealed class ArtRow(ArtCandidate candidate) : INotifyPropertyChanged
+public sealed class ArtRow(ArtCandidate candidate, byte[]? local = null, string? where = null) : INotifyPropertyChanged
 {
     public ArtCandidate Candidate { get; } = candidate;
+
+    /// The bytes of art the album already has ("in the folder", "in the
+    /// files"); null for the archive's, which are downloaded when picked.
+    public byte[]? Local { get; } = local;
+    public string? Where { get; } = where;
+
     public string Edition => Candidate.Edition;
-    public string What => Candidate.Slot == ArtSlot.Booklet ? $"booklet page {Candidate.Page}" : Candidate.Slot.ToString().ToLowerInvariant();
-    public string Source => Candidate.Ours ? "this pressing" : "other edition";
-    public IBrush SourceInk => Candidate.Ours ? Tones.OkText : Tones.WarnText;
-    public IBrush SourceFill => Candidate.Ours ? Tones.OkFill : Tones.WarnFill;
+    public string What => Local is { } b ? Pending.Describe(b)
+        : Candidate.Slot == ArtSlot.Booklet ? $"booklet page {Candidate.Page}" : Candidate.Slot.ToString().ToLowerInvariant();
+    public string Source => Where ?? (Candidate.Ours ? "this pressing" : "other edition");
+    public IBrush SourceInk => Local is not null ? Tones.NoteText : Candidate.Ours ? Tones.OkText : Tones.WarnText;
+    public IBrush SourceFill => Local is not null ? Tones.NoteFill : Candidate.Ours ? Tones.OkFill : Tones.WarnFill;
 
     public Bitmap? Thumbnail
     {

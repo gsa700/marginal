@@ -111,6 +111,13 @@
                         <TextBlock x:Name="OrderNote" DockPanel.Dock="Right" Classes="mono dim" Text="best fit first"/>
                         <TextBlock x:Name="ReleasesLabel" Classes="label" Text="RELEASES"/>
                     </DockPanel>
+<Border x:Name="BusyBar" DockPanel.Dock="Top" IsVisible="False" Background="{DynamicResource Selected}"
+                        BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="16,0,16,10">
+                    <StackPanel Spacing="8">
+                        <TextBlock x:Name="BusyText" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource Accent}" TextWrapping="Wrap"/>
+                        <ProgressBar IsIndeterminate="True" Height="4" MinHeight="4" Foreground="{DynamicResource Accent}" Background="#DCE8F7"/>
+                    </StackPanel>
+                </Border>
                     <ListBox x:Name="ReleaseList" SelectionChanged="OnReleaseSelected">
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="app:CandidateRow">

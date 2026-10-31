@@ -54,6 +54,8 @@ public sealed partial class LookupWindow : Window
     {
         var cancel = Restart();
         Status("searching MusicBrainz…", Tones.Dim);
+        Busy(Lookup.ReleaseIdFrom(text) is not null && !(text ?? "").Contains("reid:", StringComparison.OrdinalIgnoreCase)
+            ? "Reading that release from MusicBrainz…" : "Searching MusicBrainz…");
         try
         {
             var candidates = new List<ReleaseCandidate>();
@@ -70,6 +72,7 @@ public sealed partial class LookupWindow : Window
                     candidates.Insert(0, AsCandidate(r, tagged: true));
             }
             if (cancel.IsCancellationRequested) return;
+            Busy(null);
             var rows = candidates.Select(c => new CandidateRow(c, _album.Tracks.Count)).ToList();
             ReleaseList.ItemsSource = rows;
             ReleasesLabel.Text = $"RELEASES · {rows.Count}";
@@ -80,8 +83,17 @@ public sealed partial class LookupWindow : Window
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is MusicBrainzException or HttpRequestException)
         {
+            Busy(null);
             Status($"MusicBrainz: {ex.Message}", Tones.BadText);
         }
+    }
+
+    /// The banner over the release list while MusicBrainz is asked: where the
+    /// eye already is, not only the corner status line. Null hides it.
+    private void Busy(string? text)
+    {
+        BusyBar.IsVisible = text is not null;
+        if (text is not null) BusyText.Text = text;
     }
 
     private ReleaseCandidate AsCandidate(MbRelease r, bool tagged) =>
