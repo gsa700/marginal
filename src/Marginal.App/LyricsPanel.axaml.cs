@@ -1,8 +1,11 @@
 using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Marginal.Core;
+using Marginal.Playback;
 
 namespace Marginal.App;
 
@@ -21,6 +24,17 @@ public sealed partial class LyricsPanel : UserControl
     private string _loaded = "";
     private bool _settingText;
 
+    // Playing the track: AlbumWall's engine (Hymie), one track at a time.
+    private Player? _player;
+    private string? _playing;
+    private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromMilliseconds(50) };
+    private bool _movingSlider;
+    private int _tapLine = -1;
+
+    /// The lines stamped since Tap to time was turned on, newest last, and the
+    /// time each had before (null: none), so Back a line can undo them in turn.
+    private readonly Stack<(int Line, TimeSpan? Before)> _tapped = new();
+
     /// Changes to add to the album's Pending.
     public event Action<IReadOnlyList<Change>>? Changes;
 
@@ -31,6 +45,19 @@ public sealed partial class LyricsPanel : UserControl
     {
         InitializeComponent();
         SyncedView.IsChecked = true;
+        _clock.Tick += (_, _) => Tick();
+        // Space stamps a line while Tap to time is on, before the editor sees
+        // it; its release is swallowed too, or a focused button (Play) takes
+        // it as a click and pauses (2026-10-31).
+        AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
+        AddHandler(KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel);
+        if (!Player.IsAvailable)
+        {
+            PlayButton.IsEnabled = false;
+            TapButton.IsEnabled = false;
+            NowLine.Text = "no audio output on this machine, so tracks cannot be played here";
+        }
+        DetachedFromVisualTree += (_, _) => StopPlaying();
     }
 
     /// The album to show, or null. Searches already made for it are kept.
@@ -67,6 +94,7 @@ public sealed partial class LyricsPanel : UserControl
 
     private void ShowTrack(TrackFile? track)
     {
+        if (track?.Path != _playing) StopPlaying();
         _track = track;
         Editor.IsEnabled = track is not null;
         if (track is null)
@@ -114,6 +142,194 @@ public sealed partial class LyricsPanel : UserControl
         PlainView.IsChecked = !synced;
         ShowView();
     }
+
+    // ---- playing and timing --------------------------------------------------------------
+
+    private void OnPlay(object? sender, RoutedEventArgs e)
+    {
+        if (_track is null || !Player.IsAvailable) return;
+        _player ??= new Player(GainMode.Off);
+        if (_playing != _track.Path)
+        {
+            _playing = _track.Path;
+            _player.Play([_track.Path]);
+            _clock.Start();
+        }
+        else _player.TogglePause();
+        Tick();
+    }
+
+    /// The engine closed for good (the window is going).
+    public void Shutdown()
+    {
+        StopPlaying();
+        _player?.Dispose();
+        _player = null;
+    }
+
+    private void StopPlaying()
+    {
+        _player?.Stop();
+        _playing = null;
+        _clock.Stop();
+        SetTap(false);
+        PlayGlyph.Text = "▶";
+        PositionText.Text = "0:00.0";
+        NowLine.Text = Player.IsAvailable ? "" : NowLine.Text;
+        _movingSlider = true;
+        PositionSlider.Value = 0;
+        _movingSlider = false;
+    }
+
+    private void Tick()
+    {
+        if (_player is null || _playing is null) return;
+        var position = _player.Position;
+        var duration = _player.Duration;
+        PlayGlyph.Text = _player.IsPlaying ? "⏸" : "▶";
+        PositionText.Text = Clock(position);
+        DurationText.Text = Clock(duration);
+        _movingSlider = true;
+        PositionSlider.Maximum = Math.Max(1, duration.TotalSeconds);
+        PositionSlider.Value = Math.Min(position.TotalSeconds, PositionSlider.Maximum);
+        _movingSlider = false;
+        // The line being sung, from the editor as it is now.
+        if (SyncedView.IsChecked == true)
+        {
+            var text = Editor.Text ?? "";
+            var i = Lrc.LineAt(text, position);
+            NowLine.Text = TapButton.IsChecked == true
+                ? (_tapLine >= 0 ? $"Space stamps: {Lrc.Words(Lrc.Lines(text)[_tapLine])}" : "every line is timed")
+                : i >= 0 ? $"now: {Lrc.Words(Lrc.Lines(text)[i])}" : "";
+        }
+    }
+
+    private void OnSeek(object? sender, Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_movingSlider || _player is null || _playing is null) return;
+        _player.Seek(TimeSpan.FromSeconds(e.NewValue));
+    }
+
+    /// Tap to time: the editor is held still, and each Space puts the playing
+    /// position on the next line that takes a time, from the line the cursor
+    /// is on (or the first).
+    private void OnTap(object? sender, RoutedEventArgs e) => SetTap(TapButton.IsChecked == true);
+
+    private void SetTap(bool on)
+    {
+        TapButton.IsChecked = on;
+        _tapped.Clear();
+        BackLineButton.IsEnabled = false;
+        if (on)
+        {
+            if (SyncedView.IsChecked != true) { SyncedView.IsChecked = true; PlainView.IsChecked = false; }
+            // From the first line with no time yet (or the first line when all
+            // have one), not from the cursor: after a paste the cursor is at
+            // the end, and only the last line would have been stamped
+            // (2026-10-31). The cursor goes there, to show where Space starts.
+            var text = Editor.Text ?? "";
+            var lines = Lrc.Lines(text);
+            var first = Lrc.NextTimeable(text, -1);
+            var untimed = first;
+            while (untimed >= 0 && Lrc.TimeOf(lines[untimed]) is not null) untimed = Lrc.NextTimeable(text, untimed);
+            _tapLine = untimed >= 0 ? untimed : first;
+            if (_tapLine >= 0) SetEdited(text, caretOnLine: _tapLine);
+            if (_playing is null) OnPlay(this, new RoutedEventArgs());
+            Editor.IsReadOnly = true;
+            // Off the buttons, so nothing else answers Space.
+            Editor.Focus();
+            EditorNote.Text = "Tap to time: Space as each line begins · Backspace steps back a line · click Tap to time to stop";
+        }
+        else
+        {
+            _tapLine = -1;
+            Editor.IsReadOnly = false;
+            if (_track is not null) EditorNote.Text = "LRC: one [mm:ss.xx] time per line";
+        }
+    }
+
+    private void OnKey(object? sender, KeyEventArgs e)
+    {
+        if (TapButton.IsChecked != true || _player is null || _playing is null) return;
+        if (e.Key == Key.Back) { e.Handled = true; BackLine(); return; }
+        if (e.Key != Key.Space) return;
+        e.Handled = true;
+        if (_tapLine < 0) return;
+        _tapped.Push((_tapLine, Lrc.TimeOf(Lrc.Lines(Editor.Text)[_tapLine])));
+        BackLineButton.IsEnabled = true;
+        var text = Lrc.SetTime(Editor.Text, _tapLine, _player.Position);
+        var stamped = _tapLine;
+        _tapLine = Lrc.NextTimeable(text, _tapLine);
+        SetEdited(text, caretOnLine: _tapLine >= 0 ? _tapLine : stamped);
+        if (_tapLine < 0) SetTap(false);
+    }
+
+    private void OnBackLine(object? sender, RoutedEventArgs e)
+    {
+        BackLine();
+        Editor.Focus();
+    }
+
+    /// Undoes the last stamp: the line gets back what it had, Space will stamp
+    /// it next, and playback goes 3 s before where it was stamped, to hear it
+    /// coming again (a one-line slip had no way back, 2026-10-31).
+    private void BackLine()
+    {
+        if (_tapped.Count == 0 || _player is null) return;
+        var (line, before) = _tapped.Pop();
+        var text = Editor.Text ?? "";
+        var stampedAt = Lrc.TimeOf(Lrc.Lines(text)[line]);
+        text = before is { } b ? Lrc.SetTime(text, line, b) : Lrc.ClearTime(text, line);
+        _tapLine = line;
+        SetEdited(text, caretOnLine: line);
+        if (stampedAt is { } t) _player.Seek(t > TimeSpan.FromSeconds(3) ? t - TimeSpan.FromSeconds(3) : TimeSpan.Zero);
+        BackLineButton.IsEnabled = _tapped.Count > 0;
+        Tick();
+    }
+
+    private void OnKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Space or Key.Back && TapButton.IsChecked == true) e.Handled = true;
+    }
+
+    private void OnNudgeBack(object? sender, RoutedEventArgs e) => Nudge(-0.1);
+    private void OnNudgeOn(object? sender, RoutedEventArgs e) => Nudge(+0.1);
+
+    /// The line the cursor is on (or the one just stamped) moved a tenth of a second.
+    private void Nudge(double seconds)
+    {
+        var line = TapButton.IsChecked == true && _tapLine > 0 ? _tapLine - 1 : CaretLine();
+        SetEdited(Lrc.Nudge(Editor.Text, line, TimeSpan.FromSeconds(seconds)), caretOnLine: line);
+    }
+
+    private void OnShift(object? sender, RoutedEventArgs e)
+    {
+        var by = (double)(ShiftBy.Value ?? 0);
+        ShiftButton.Flyout?.Hide();
+        if (by == 0) return;
+        SetEdited(Lrc.ShiftAll(Editor.Text, TimeSpan.FromSeconds(by)), caretOnLine: CaretLine());
+    }
+
+    /// New editor text from a timing action: counted as an edit, the cursor
+    /// put on a line so the next nudge knows where it is.
+    private void SetEdited(string text, int caretOnLine)
+    {
+        Editor.Text = text;
+        var lines = Lrc.Lines(text);
+        var caret = 0;
+        for (var i = 0; i < Math.Min(caretOnLine, lines.Length); i++) caret += lines[i].Length + 1;
+        Editor.CaretIndex = Math.Min(caret, text.Length);
+        UseButton.IsEnabled = Lrc.Tidy(text) != Lrc.Tidy(_loaded);
+    }
+
+    private int CaretLine()
+    {
+        var text = Editor.Text ?? "";
+        var caret = Math.Min(Editor.CaretIndex, text.Length);
+        return text[..caret].Count(c => c == '\n');
+    }
+
+    private static string Clock(TimeSpan t) => t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss\.f") : t.ToString(@"m\:ss\.f");
 
     private void ShowView()
     {

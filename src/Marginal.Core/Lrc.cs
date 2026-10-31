@@ -67,6 +67,86 @@ public static partial class Lrc
             .Select(l => Stamp().Replace(l, "").Trim())));
     }
 
+    // ---- timing by hand (Tap to time, nudges, shift) --------------------------
+    //
+    // These work on the editor's text line by line: a line keeps its words and
+    // gets (or loses, or moves) the one time at its start. Header tags and
+    // blank lines are never timed.
+
+    /// The lines of `text`, as the editor shows them.
+    public static string[] Lines(string? text) => (text ?? "").ReplaceLineEndings("\n").Split('\n');
+
+    /// Whether line `i` is one that takes a time: words, not a header or blank.
+    public static bool Timeable(string[] lines, int i) =>
+        i >= 0 && i < lines.Length && Words(lines[i]).Length > 0 && !Header().IsMatch(lines[i]);
+
+    /// The words of a line, any times at its start taken off.
+    public static string Words(string line) =>
+        StartStamps().Match(line) is { Success: true } m ? line[m.Length..].Trim() : line.Trim();
+
+    [GeneratedRegex(@"^\s*(\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\]\s*)+")]
+    private static partial Regex StartStamps();
+
+    /// The time at the start of a line, if it has one.
+    public static TimeSpan? TimeOf(string line) => Parse(line) is [var l, ..] ? l.Time : null;
+
+    /// Line `i` with `time` at its start, in place of any it had.
+    public static string SetTime(string? text, int i, TimeSpan time)
+    {
+        var lines = Lines(text);
+        if (!Timeable(lines, i)) return text ?? "";
+        if (time < TimeSpan.Zero) time = TimeSpan.Zero;
+        lines[i] = Format([new LrcLine(time, Words(lines[i]))]);
+        return string.Join('\n', lines);
+    }
+
+    /// Line `i` with its time taken off: the words alone again.
+    public static string ClearTime(string? text, int i)
+    {
+        var lines = Lines(text);
+        if (i < 0 || i >= lines.Length || TimeOf(lines[i]) is null) return text ?? "";
+        lines[i] = Words(lines[i]);
+        return string.Join('\n', lines);
+    }
+
+    /// Line `i`'s time moved by `delta` (a line without one is left alone).
+    public static string Nudge(string? text, int i, TimeSpan delta)
+    {
+        var lines = Lines(text);
+        return i >= 0 && i < lines.Length && TimeOf(lines[i]) is { } t ? SetTime(text, i, t + delta) : text ?? "";
+    }
+
+    /// Every timed line moved by `delta`: for lyrics that run early or late
+    /// throughout (another edition's intro, a different master).
+    public static string ShiftAll(string? text, TimeSpan delta)
+    {
+        var result = text ?? "";
+        var lines = Lines(result);
+        for (var i = 0; i < lines.Length; i++)
+            if (TimeOf(lines[i]) is not null) result = Nudge(result, i, delta);
+        return result;
+    }
+
+    /// The line being sung at `position`: the last timed line at or before it,
+    /// or -1 before the first.
+    public static int LineAt(string? text, TimeSpan position)
+    {
+        var lines = Lines(text);
+        var found = -1;
+        for (var i = 0; i < lines.Length; i++)
+            if (TimeOf(lines[i]) is { } t && t <= position && (found < 0 || t >= TimeOf(lines[found])!.Value)) found = i;
+        return found;
+    }
+
+    /// The next line after `i` that takes a time, or -1.
+    public static int NextTimeable(string? text, int i)
+    {
+        var lines = Lines(text);
+        for (var j = Math.Max(0, i + 1); j < lines.Length; j++)
+            if (Timeable(lines, j)) return j;
+        return -1;
+    }
+
     /// One kind of line ending, no trailing space or blank lines at the ends
     /// (AlbumWall's TagWriter.Tidy: what a lyric is compared and kept as).
     public static string Tidy(string? text) =>

@@ -1,7 +1,9 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Marginal.App/Marginal.App.csproj" />
+    <Project Path="src/Marginal.Codecs/Marginal.Codecs.csproj" />
     <Project Path="src/Marginal.Core/Marginal.Core.csproj" />
+    <Project Path="src/Marginal.Playback/Marginal.Playback.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Marginal.Tests/Marginal.Tests.csproj" />

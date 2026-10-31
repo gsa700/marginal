@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- AlbumWall's engine and outputs (Hymie: AudioQueue on the Mac, WASAPI on
+       Windows, PulseAudio/PipeWire on Linux), copied whole from
+       AlbumWall.Playback on 2026-10-31. Marginal plays one track at a time,
+       to time lyrics; the rest (gapless, meters) is kept so the copies stay
+       the same. A fix in one goes to the other. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\Marginal.Codecs\Marginal.Codecs.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- CS0414: HymieEngine._lastLevels is set and not read, in AlbumWall's
+         copy too. Quieted here, not edited, so the two copies stay the same. -->
+    <NoWarn>$(NoWarn);CS0414</NoWarn>
+  </PropertyGroup>
+
+</Project>

@@ -27,6 +27,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         Lyrics.Changes += changes => AddPending(changes);
         Lyrics.WriteAsked += () => OnWrite(this, new RoutedEventArgs());
+        Closed += (_, _) => Lyrics.Shutdown();
         UpdateUndo();
         UpdateBackups();
         // Originals older than the keeping time go, quietly, at each start.

@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Marginal.Core\Marginal.Core.csproj" />
+    <ProjectReference Include="..\Marginal.Playback\Marginal.Playback.csproj" />
   </ItemGroup>
 
   <!-- TagLibSharp whole, in a trimmed or Native AOT build: it constructs the

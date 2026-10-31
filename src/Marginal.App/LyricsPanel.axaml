@@ -97,6 +97,55 @@
                 </StackPanel>
             </DockPanel>
 
+            <!-- Playing the track, to time its lines (spec §3.2). -->
+            <Border x:Name="PlayerBar" DockPanel.Dock="Top" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Rule}"
+                    BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,0,0,10">
+                <StackPanel Spacing="8">
+                    <DockPanel>
+                        <Button x:Name="PlayButton" DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="18" Padding="0"
+                                Classes="tool" HorizontalContentAlignment="Center" Click="OnPlay" Margin="0,0,10,0">
+                            <TextBlock x:Name="PlayGlyph" Text="▶" FontSize="13" HorizontalAlignment="Center"/>
+                        </Button>
+                        <TextBlock x:Name="DurationText" DockPanel.Dock="Right" Classes="mono soft" FontSize="12" VerticalAlignment="Center" Margin="10,0,0,0" Text="0:00.0"/>
+                        <TextBlock x:Name="PositionText" DockPanel.Dock="Left" Classes="mono" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0" Text="0:00.0"/>
+                        <Slider x:Name="PositionSlider" Minimum="0" Maximum="1" VerticalAlignment="Center" ValueChanged="OnSeek"/>
+                    </DockPanel>
+                    <WrapPanel>
+                        <ToggleButton x:Name="TapButton" Classes="seg" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource Edge}"
+                                      Margin="0,0,8,0" Click="OnTap">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="Tap to time" VerticalAlignment="Center"/>
+                                <Border BorderBrush="{DynamicResource Edge}" BorderThickness="1" CornerRadius="3" Padding="4,0">
+                                    <TextBlock Classes="mono" Text="Space" FontSize="10"/>
+                                </Border>
+                            </StackPanel>
+                        </ToggleButton>
+                        <Button x:Name="BackLineButton" Classes="tool" Height="30" FontSize="12" Margin="0,0,8,0" IsEnabled="False" Click="OnBackLine">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="Back a line" VerticalAlignment="Center"/>
+                                <Border BorderBrush="{DynamicResource Edge}" BorderThickness="1" CornerRadius="3" Padding="4,0">
+                                    <TextBlock Classes="mono" Text="⌫" FontSize="10"/>
+                                </Border>
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="tool" Height="30" FontSize="12" Content="−0.1 s" Margin="0,0,6,0" Click="OnNudgeBack"/>
+                        <Button Classes="tool" Height="30" FontSize="12" Content="+0.1 s" Margin="0,0,6,0" Click="OnNudgeOn"/>
+                        <Button x:Name="ShiftButton" Classes="tool" Height="30" FontSize="12" Content="Shift all…">
+                            <Button.Flyout>
+                                <Flyout Placement="BottomEdgeAlignedLeft">
+                                    <StackPanel Spacing="8" Width="240">
+                                        <TextBlock TextWrapping="Wrap" FontSize="12" Text="Move every timed line by this many seconds (minus for sooner)."/>
+                                        <NumericUpDown x:Name="ShiftBy" Value="0" Increment="0.1" FormatString="0.0" Minimum="-600" Maximum="600"/>
+                                        <Button Classes="tool" Content="Shift" Click="OnShift"/>
+                                    </StackPanel>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                    </WrapPanel>
+                    <TextBlock x:Name="NowLine" Classes="mono" FontSize="12" Foreground="{DynamicResource Accent}" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Border>
+
             <!-- Pending for the album, so Write is at hand on this tab too. -->
             <Border x:Name="PendingBar" DockPanel.Dock="Bottom" IsVisible="False" Margin="0,12,0,0" Background="{DynamicResource Selected}"
                     BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="6" Padding="12,8">

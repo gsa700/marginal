@@ -50,7 +50,11 @@ What comes next, in order. The spec is `docs/spec.md`.
    unasked), the lyrics tag and a .lrc beside the track, through Pending with
    exact Undo. LRCLIB's API answered 502 to everyone that afternoon, so its
    tests use made-up answers in its documented shape; save real ones later.
-   5b, to come: playback and Tap to time (AlbumWall's decoders).* Show and edit plain and synced lyrics; LRCLIB search per track
+   5b done 2026-10-31: playback with AlbumWall's engine (Codecs and
+   Playback copied whole), Tap to time (Space; from the first untimed line;
+   Backspace steps back a line and replays from 3 s before), ±0.1 s nudge,
+   Shift all, the line being sung shown. Tried by Dave on Facelift's first
+   track: 22 lines timed, .lrc and tag written.* Show and edit plain and synced lyrics; LRCLIB search per track
    and for the album with the 2 s rule; `.lrc` sidecar. Then playback and Tap
    to time.
 6. **AlbumWall hook.** `marginal <folder>` on the command line; AlbumWall's

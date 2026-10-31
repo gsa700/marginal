@@ -66,6 +66,58 @@ public sealed class LyricsTests : IDisposable
         Assert.Equal("just words", Lrc.Plain("just words  \r\n"));
     }
 
+    // ---- timing by hand ------------------------------------------------------------
+
+    [Fact]
+    public void Tapping_stamps_plain_lines_one_after_another()
+    {
+        var text = "[ar:Somebody]\nline one\n\nline two";
+        var first = Lrc.NextTimeable(text, -1);
+        Assert.Equal(1, first);                                    // the header and the blank are passed over
+        text = Lrc.SetTime(text, first, TimeSpan.FromSeconds(12.34));
+        var second = Lrc.NextTimeable(text, first);
+        Assert.Equal(3, second);
+        text = Lrc.SetTime(text, second, TimeSpan.FromSeconds(15.5));
+        Assert.Equal("[ar:Somebody]\n[00:12.34] line one\n\n[00:15.50] line two", text);
+        Assert.Equal(-1, Lrc.NextTimeable(text, second));
+    }
+
+    [Fact]
+    public void A_new_time_replaces_the_old_one()
+    {
+        var text = Lrc.SetTime(Synced, 1, TimeSpan.FromSeconds(3));
+        Assert.Equal("[00:03.00] line two", Lrc.Lines(text)[1]);
+        Assert.Equal(3, Lrc.Parse(text).Count);
+    }
+
+    [Fact]
+    public void A_stamp_can_be_taken_off_again()
+    {
+        var text = Lrc.ClearTime(Synced, 1);
+        Assert.Equal("line two", Lrc.Lines(text)[1]);
+        Assert.Equal(2, Lrc.Parse(text).Count);
+        Assert.Equal(text, Lrc.ClearTime(text, 1));             // nothing to take off: unchanged
+    }
+
+    [Fact]
+    public void Nudge_and_shift()
+    {
+        var nudged = Lrc.Nudge(Synced, 0, TimeSpan.FromMilliseconds(100));
+        Assert.Equal("[00:01.10] line one", Lrc.Lines(nudged)[0]);
+        Assert.Equal("[00:00.90] line one", Lrc.Lines(Lrc.Nudge(Synced, 0, TimeSpan.FromMilliseconds(-100)))[0]);
+        var shifted = Lrc.ShiftAll(Synced, TimeSpan.FromSeconds(-2));
+        Assert.Equal([TimeSpan.Zero, TimeSpan.FromSeconds(0.5), TimeSpan.FromSeconds(2.25)], Lrc.Parse(shifted).Select(l => l.Time));
+    }
+
+    [Fact]
+    public void The_line_being_sung()
+    {
+        Assert.Equal(-1, Lrc.LineAt(Synced, TimeSpan.FromSeconds(0.5)));
+        Assert.Equal(0, Lrc.LineAt(Synced, TimeSpan.FromSeconds(1)));
+        Assert.Equal(1, Lrc.LineAt(Synced, TimeSpan.FromSeconds(3)));
+        Assert.Equal(2, Lrc.LineAt(Synced, TimeSpan.FromMinutes(5)));
+    }
+
     // ---- LRCLIB's answers and the 2 s rule ---------------------------------------------
 
     private static LrcLibResult Result(string track, double duration, bool synced = true, string artist = "Fixture Band", string album = "Test Album") =>

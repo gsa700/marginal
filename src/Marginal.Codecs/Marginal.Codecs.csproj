@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- AlbumWall's decoders (Hymie's): FLAC, MP3, AAC, ALAC, WAV in plain C#,
+       copied whole from AlbumWall.Codecs on 2026-10-31 for lyric timing
+       (spec §9.5). Each file says so; a fix in one goes to the other. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+</Project>
