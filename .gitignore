@@ -1,0 +1,10 @@
+bin/
+obj/
+*.user
+.vs/
+.idea/
+TestResults/
+dist/
+.DS_Store
+# Left over in older checkouts: the native libraries no build has used since 0.7.4.
+native/
