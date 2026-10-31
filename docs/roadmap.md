@@ -6,8 +6,8 @@ What comes next, in order. The spec is `docs/spec.md`.
 
 0. **Skeleton.** *Done 2026-10-31 (3f81aa8), CI green on all three.* Solution and projects (`Marginal.App`, `Marginal.Core`,
    `Marginal.Tests`), Directory.Build.props, CI on all three platforms with
-   Native AOT, the light theme, an empty main window. Privacy rules and
-   release scripts copied from Deadwax.
+   Native AOT, the light theme, an empty main window. Privacy rules copied
+   from Deadwax; its release scripts wait for step 7.
 1. **Read and show.** *Done 2026-10-31: tried on Control's ~/Music (386
    albums). Also: the cover from the files when there is no cover.jpg,
    resizable panes, square within 1%, track-level fields out of the album
