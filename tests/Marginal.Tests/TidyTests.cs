@@ -232,3 +232,32 @@ public sealed class TagKindTests : IDisposable
         Assert.DoesNotContain(AlbumReader.Read(album).Tracks, t => t.HasId3v1 || t.HasApe);
     }
 }
+
+public sealed class Id3v1PolicyTests
+{
+    private static Album Fixture() =>
+        AlbumReader.Read(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Fixture Band - Test Album"));
+
+    [Fact]
+    public void Changing_an_MP3_with_ID3v1_takes_it_off_and_says_so()
+    {
+        var album = Fixture();
+        var mp3 = album.Tracks.Single(t => t.Format == AudioFormat.Mp3);
+        Assert.True(mp3.HasId3v1);
+        var list = Pending.DropId3v1(album, Pending.SetField(album, FieldMap.Label, "Vertigo"));
+        var v1 = Assert.Single(list, c => c.Op == ChangeOp.RemoveTag);
+        Assert.Equal(mp3.Path, v1.Path);
+        Assert.Equal(Pending.Id3v1Along, v1.From);
+
+        // The label taken back out: the ID3v1 line goes with it.
+        Assert.Empty(Pending.DropId3v1(album, list.Where(c => c.Op != ChangeOp.SetField).ToList()));
+    }
+
+    [Fact]
+    public void An_asked_for_ID3v1_removal_stays_on_its_own()
+    {
+        var album = Fixture();
+        var junk = Pending.CleanJunk(album);
+        Assert.Equal(junk.Count, Pending.DropId3v1(album, junk).Count);
+    }
+}

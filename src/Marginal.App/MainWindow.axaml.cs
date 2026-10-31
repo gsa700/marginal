@@ -560,7 +560,7 @@ public sealed partial class MainWindow : Window
         if (_album is not { } album) return;
         var list = PendingHere;
         if (field is not null) list = list.Where(c => c.Field != field).ToList();
-        list = Core.Pending.Merge(list, changes);
+        list = Core.Pending.DropId3v1(album, Core.Pending.Merge(list, changes));
         if (list.Count == 0) _pending.Remove(album.Folder);
         else _pending[album.Folder] = list;
         ResultBox.IsVisible = false;
@@ -670,7 +670,7 @@ public sealed partial class MainWindow : Window
         {
             var changes = Cleanup(kind, row.Album);
             if (changes.Count == 0) continue;
-            var list = Core.Pending.Merge(_pending.GetValueOrDefault(row.Album.Folder) ?? [], changes);
+            var list = Core.Pending.DropId3v1(row.Album, Core.Pending.Merge(_pending.GetValueOrDefault(row.Album.Folder) ?? [], changes));
             if (list.Count > 0) _pending[row.Album.Folder] = list;
         }
         if (_pending.Count == 0)

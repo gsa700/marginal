@@ -94,6 +94,26 @@ public static class Pending
                 .Select(r => new Change(t.Path, ChangeOp.RemoveFrame, ChangeKind.Remove, r.Key, r.Value, null)))
             .ToList();
 
+    /// What an ID3v1 removal says when it only goes along with a file's other
+    /// changes: told apart from one asked for (Clean up), which stays.
+    public const string Id3v1Along = "present · goes with this file's other changes";
+
+    /// Marginal writes no ID3v1 (Dave, 2026-10-31: nothing has read it since
+    /// ID3v2 came out in 1998, and TagLib# kept writing it back): an MP3
+    /// with one that is changed loses it, said in Pending as its own line.
+    /// Run over an album's Pending after every change to it, so the line
+    /// comes and goes with the file's other changes.
+    public static List<Change> DropId3v1(Album album, IReadOnlyList<Change> list)
+    {
+        var withV1 = album.Tracks.Where(t => t.Problem is null && t.Format == AudioFormat.Mp3 && t.HasId3v1).Select(t => t.Path).ToHashSet();
+        bool IsV1(Change c) => c is { Op: ChangeOp.RemoveTag, Key: "ID3v1" };
+        var touched = list.Where(c => !IsV1(c) && withV1.Contains(c.Path)).Select(c => c.Path).ToHashSet();
+        var result = list.Where(c => !(IsV1(c) && c.From == Id3v1Along && !touched.Contains(c.Path))).ToList();
+        foreach (var path in touched.Where(p => !result.Any(c => IsV1(c) && c.Path == p)))
+            result.Add(new Change(path, ChangeOp.RemoveTag, ChangeKind.Remove, "ID3v1", Id3v1Along, null));
+        return result;
+    }
+
     /// Marks every track as part of a compilation.
     public static IReadOnlyList<Change> MarkCompilation(Album album) => SetField(album, FieldMap.Compilation, "1");
 
