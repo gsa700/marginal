@@ -52,10 +52,23 @@ internal static class Program
 
     /// Native Wayland wherever a Wayland session exists, as AlbumWall and
     /// Deadwax do. MARGINAL_X11=1 goes back through XWayland.
+    ///
+    /// "Backend": "x11" in settings.json does the same for good, on one
+    /// machine, on GNOME only (AlbumWall's setting, and the same reasons): a
+    /// Wayland client cannot place its window, so it never reopens where it
+    /// was, and mutter maximizes any window that opens over 80% of the screen
+    /// both ways, so a large remembered size came back maximized (Techbench,
+    /// 2026-10-31; Dave: "use Xwayland"). Hand-edited, not in Preferences.
     public static readonly bool NativeWayland =
         OperatingSystem.IsLinux()
         && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"))
-        && Environment.GetEnvironmentVariable("MARGINAL_X11") != "1";
+        && Environment.GetEnvironmentVariable("MARGINAL_X11") != "1"
+        && !(OnGnome && string.Equals(Settings.Load().Backend, "x11", StringComparison.OrdinalIgnoreCase));
+
+    /// XDG_CURRENT_DESKTOP is a colon-separated list ("GNOME", "ubuntu:GNOME").
+    private static bool OnGnome =>
+        (Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP") ?? "")
+            .Split(':').Contains("GNOME", StringComparer.OrdinalIgnoreCase);
 
     public static AppBuilder BuildAvaloniaApp()
     {

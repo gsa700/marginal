@@ -61,4 +61,4 @@ other: `src/Marginal.Codecs` and `src/Marginal.Playback` (AlbumWall's Hymie),
 from a source and then changed: `MusicBrainzClient.cs` (Deadwax's), the install
 and update code in `src/Marginal.App/Install`, `InstallFlow.cs`,
 `UpdateService.cs`, `MacUpdate.cs`, `MacInstaller.cs`, `WindowsShell.cs`, `WindowPlacement.cs`,
-`PowerShell.cs` and `tools/` (Deadwax's).
+`PowerShell.cs`, `WaylandShell.cs` and `tools/` (Deadwax's).

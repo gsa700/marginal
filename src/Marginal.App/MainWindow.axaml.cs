@@ -49,6 +49,7 @@ public sealed partial class MainWindow : Window
         Closed += (_, _) => Lyrics.Shutdown();
         Opened += async (_, _) =>
         {
+            WaylandShell.ClaimIdentity(this);   // the dash's icon, on native Wayland (Fedora, 2026-10-31)
             // Back where it was, kept on a screen (WindowPlacement); maximized
             // only once placed, so on the screen it was on.
             if (WindowPlacement.Restore(this, _settings.WindowX, _settings.WindowY)) _normalPosition = Position;
