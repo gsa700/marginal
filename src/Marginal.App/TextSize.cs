@@ -61,7 +61,10 @@ public static class TextSize
         void Apply()
         {
             var f = Factor;
-            host.LayoutTransform = f == 1 ? null : new ScaleTransform(f, f);
+            // 1 said explicitly at 100%, never null: in AlbumWall (Techbench,
+            // 2026-11-01) going from 150% back to 100% left the old scale on the
+            // content, laid out at 150% in a window that had shrunk.
+            host.LayoutTransform = new ScaleTransform(f, f);
             var area = (window.Screens.ScreenFromWindow(window) ?? window.Screens.Primary) is { } screen
                 ? screen.WorkingArea.Size.ToSize(screen.Scaling) : new Size(double.MaxValue, double.MaxValue);
             window.MinWidth = Math.Min(minWidth * f, area.Width - 48);
