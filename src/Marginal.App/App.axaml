@@ -96,5 +96,45 @@
             <Setter Property="Background" Value="#C9CED6"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
         </Style>
+
+        <!-- The drawn title bar's window buttons (WindowButtons), Deadwax's
+             styles in Marginal's light colours: circles on Linux as GNOME's
+             own, full-height squares on Windows. -->
+        <Style Selector="Button.wbtn">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource Soft}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.wbtn.round">
+            <Setter Property="Width" Value="26"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="CornerRadius" Value="13"/>
+        </Style>
+        <Style Selector="Button.wbtn.square">
+            <Setter Property="Width" Value="46"/>
+            <Setter Property="Height" Value="43"/>
+            <Setter Property="CornerRadius" Value="0"/>
+        </Style>
+        <Style Selector="Button.wbtn /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Desk}"/>
+        </Style>
+        <Style Selector="Button.wbtn.square /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="Button.wbtn:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Rule}"/>
+        </Style>
+        <Style Selector="Button.wbtn:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+        </Style>
+        <Style Selector="Button.wbtn.close:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#C42B1C"/>
+        </Style>
+        <Style Selector="Button.wbtn.close:pointerover">
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+        </Style>
     </Application.Styles>
 </Application>

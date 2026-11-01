@@ -113,12 +113,25 @@
         </Style>
     </Window.Styles>
 
+    <!-- Rounded corners off the Mac (UseDrawnTitleBar), as Deadwax and
+         AlbumWall: the window goes transparent and this border carries the
+         ground, clipped to 12 px corners; square when not Normal (ApplyCorners).
+         On the Mac it is a plain border and macOS rounds the window itself. -->
+    <Border x:Name="Surface" ClipToBounds="True" Background="{DynamicResource Ground}">
     <DockPanel>
 
-        <!-- Mode tabs. -->
-        <Border DockPanel.Dock="Top" Background="{DynamicResource Panel}"
+        <!-- Mode tabs, and off the Mac the title bar too: the desktop's own
+             window buttons, a drag on the bar moves the window and a double
+             click maximizes (Deadwax's, 2026-10-31). -->
+        <Border x:Name="TopBar" DockPanel.Dock="Top" Background="{DynamicResource Panel}" MinHeight="43"
                 BorderBrush="{DynamicResource Rule}" BorderThickness="0,0,0,1" Padding="16,0">
             <DockPanel>
+                <StackPanel x:Name="LeftButtons" DockPanel.Dock="Left" Orientation="Horizontal" Spacing="8"
+                            VerticalAlignment="Center"/>
+                <TextBlock x:Name="TitleText" DockPanel.Dock="Left" Text="Marginal" IsVisible="False" IsHitTestVisible="False"
+                           FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,18,0"/>
+                <StackPanel x:Name="RightButtons" DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
+                            VerticalAlignment="Center"/>
                 <Border x:Name="FromChip" DockPanel.Dock="Right" IsVisible="False" VerticalAlignment="Center"
                         Background="{DynamicResource Desk}" BorderBrush="{DynamicResource Rule}" BorderThickness="1" CornerRadius="4" Padding="8,3">
                     <TextBlock x:Name="FromText" Classes="mono soft"/>
@@ -600,4 +613,5 @@
             </Border>
         </Grid>
     </DockPanel>
+    </Border>
 </Window>

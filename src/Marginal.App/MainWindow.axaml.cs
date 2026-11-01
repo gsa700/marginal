@@ -34,6 +34,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        UseDrawnTitleBar();   // off the Mac (MainWindow.Frame.cs)
         // The size it had, then (at Opened) where it was (Dave, 2026-10-31).
         if (_settings.Width is { } w) Width = Math.Max(w, MinWidth);
         if (_settings.Height is { } h) Height = Math.Max(h, MinHeight);
