@@ -33,6 +33,7 @@ public sealed partial class LookupWindow : Window
     {
         _album = album;
         InitializeComponent();
+        DrawnFrame.Attach(this, Surface, TopBar, LeftButtons, RightButtons, owned: true);
         AlbumLine.Text = $"{album.Artist} — {album.Title} · {album.Tracks.Count} files · {Length(album.Length)}";
         // A release ID already in the files is the first thing to look at.
         var tagged = album.Fields.First(f => f.Field == FieldMap.MusicBrainzRelease).Common;

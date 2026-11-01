@@ -53,6 +53,7 @@ public sealed partial class ArtWindow : Window
     {
         _album = album;
         InitializeComponent();
+        DrawnFrame.Attach(this, Surface, TopBar, LeftButtons, RightButtons, owned: true);
         AlbumLine.Text = $"{album.Artist} — {album.Title}";
         FrontSlot.Content = $"Front  {(album.Cover is { } c ? $"have {c.Size}" : album.Tracks.Any(t => t.EmbeddedCover() is not null) ? "embedded only" : "missing")}";
         BackSlot.Content = $"Back  {(album.Back is { } b ? $"have {b.Size}" : "missing")}";

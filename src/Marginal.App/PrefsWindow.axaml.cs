@@ -22,6 +22,7 @@ public sealed partial class PrefsWindow : Window
         _main = main;
         _settings = settings;
         InitializeComponent();
+        DrawnFrame.Wrap(this);
         VersionText.Text = $"Version {UpdateService.CurrentVersion}";
         try { AppIcon.Source = new Bitmap(AssetLoader.Open(new Uri("avares://Marginal/Assets/icon-256.png"))); } catch (Exception) { }
         AutoCheckBox.IsChecked = settings.CheckForUpdates;

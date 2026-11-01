@@ -12,7 +12,11 @@ namespace Marginal.App;
 /// </summary>
 public partial class ConfirmWindow : Window
 {
-    public ConfirmWindow() => InitializeComponent();
+    public ConfirmWindow()
+    {
+        InitializeComponent();
+        DrawnFrame.Wrap(this);   // off the Mac: drawn title bar, Close only (Marginal, 2026-10-31)
+    }
 
     /// <param name="affirmative">
     /// Label for the button that returns true. Name the action ("Install", "Remove") rather than

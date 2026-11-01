@@ -55,11 +55,16 @@
         </Style>
     </Window.Styles>
 
+    <!-- Off the Mac the frame is drawn (DrawnFrame): this border carries the
+         ground and the rounded corners, the header is the title bar. -->
+    <Border x:Name="Surface" ClipToBounds="True" Background="{DynamicResource Ground}">
     <DockPanel>
-        <!-- Header and status line. -->
-        <Border DockPanel.Dock="Top" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Rule}"
+        <!-- Header and status line; off the Mac the title bar too. -->
+        <Border x:Name="TopBar" DockPanel.Dock="Top" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Rule}"
                 BorderThickness="0,0,0,1" Padding="18,12">
             <DockPanel>
+                <StackPanel x:Name="LeftButtons" DockPanel.Dock="Left" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"/>
+                <StackPanel x:Name="RightButtons" DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"/>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <TextBlock x:Name="StatusDot" Classes="mono" Text="●" Foreground="{DynamicResource Dim}"/>
                     <TextBlock x:Name="StatusText" Classes="mono soft"/>
@@ -221,4 +226,5 @@
             </Border>
         </Grid>
     </DockPanel>
+    </Border>
 </Window>
