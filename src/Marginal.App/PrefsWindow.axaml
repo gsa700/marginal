@@ -4,11 +4,15 @@
         x:Class="Marginal.App.PrefsWindow"
         x:DataType="app:PrefsWindow"
         Title="Marginal — Preferences"
-        Width="560" Height="560" MinWidth="440" MinHeight="420"
+        Width="560" MinWidth="440" SizeToContent="Height"
         Icon="avares://Marginal/Assets/icon-256.png"
         Background="{DynamicResource Ground}"
         WindowStartupLocation="CenterOwner">
-    <!-- Updates and About, as in Deadwax's Preferences: the policy and the
+    <!-- As tall as what it holds (SizeToContent), so the update button is
+         never below the bottom edge: at a fixed 560 it was, always, and more
+         so once the drawn title bar and shadow took their room (Dave,
+         2026-10-31). The ScrollViewer stays for a screen shorter than that.
+         Updates and About, as in Deadwax's Preferences: the policy and the
          action together; the check at launch only ever lights the dot on the
          gear, nothing is fetched until the button here. -->
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
