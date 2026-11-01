@@ -265,6 +265,13 @@
                                     <Button x:Name="WriteAllButton" Classes="primary" Height="28" FontSize="12" Margin="0,0,6,0" Click="OnWriteAll"/>
                                     <Button Classes="tool" Height="28" FontSize="12" Content="Discard all" Click="OnDiscardAll"/>
                                 </WrapPanel>
+                                <!-- Write all's progress here too: with no album open the
+                                     album pane's bar is not on screen (Dave, 2026-10-31). -->
+                                <StackPanel x:Name="LibraryWriteProgress" IsVisible="False" Spacing="4">
+                                    <ProgressBar x:Name="LibraryWriteBar" Height="4" MinHeight="4" Minimum="0" Maximum="1"
+                                                 Foreground="{DynamicResource Accent}" Background="#DCE8F7"/>
+                                    <TextBlock x:Name="LibraryWriteText" Classes="mono soft"/>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>

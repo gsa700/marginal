@@ -426,17 +426,22 @@ public sealed partial class MainWindow : Window
 
     private IProgress<int> Progress(string doing, int total)
     {
+        // Under the album's Pending box, and under the library's when that one
+        // is showing (Write all with no album open, 2026-10-31).
         WriteProgress.IsVisible = true;
-        WriteBar.Value = 0;
-        WriteProgressText.Text = $"{doing} 0 of {total:N0} files…";
-        return new Progress<int>(done =>
+        LibraryWriteProgress.IsVisible = LibraryPendingBar.IsVisible;
+        void Show(int done)
         {
-            WriteBar.Value = total == 0 ? 1 : (double)done / total;
-            WriteProgressText.Text = $"{doing} {done:N0} of {total:N0} files…";
-        });
+            var fraction = total == 0 ? 1 : (double)done / total;
+            var text = $"{doing} {done:N0} of {total:N0} files…";
+            WriteBar.Value = LibraryWriteBar.Value = fraction;
+            WriteProgressText.Text = LibraryWriteText.Text = text;
+        }
+        Show(0);
+        return new Progress<int>(Show);
     }
 
-    private void EndProgress() => WriteProgress.IsVisible = false;
+    private void EndProgress() => WriteProgress.IsVisible = LibraryWriteProgress.IsVisible = false;
 
     /// Writes running now (Write, Write all, Undo): an update waits for them.
     private int _writing;
