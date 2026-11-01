@@ -106,6 +106,15 @@
                                 Classes="tool" HorizontalContentAlignment="Center" Click="OnPlay" Margin="0,0,10,0">
                             <TextBlock x:Name="PlayGlyph" Text="▶" FontSize="13" HorizontalAlignment="Center"/>
                         </Button>
+                        <!-- This app's own volume, remembered (Dave, 2026-10-31: "it looks
+                             really hot"); album ReplayGain comes before it. -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="14,0,0,0"
+                                    ToolTip.Tip="Volume, for Marginal only; album ReplayGain from the tags is applied first">
+                            <Path Width="14" Height="14" Stretch="Uniform" Fill="{DynamicResource Soft}" VerticalAlignment="Center"
+                                  Data="M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/>
+                            <Slider x:Name="VolumeSlider" Width="96" Minimum="0" Maximum="100" Value="70" VerticalAlignment="Center"
+                                    ValueChanged="OnVolume"/>
+                        </StackPanel>
                         <TextBlock x:Name="DurationText" DockPanel.Dock="Right" Classes="mono soft" FontSize="12" VerticalAlignment="Center" Margin="10,0,0,0" Text="0:00.0"/>
                         <TextBlock x:Name="PositionText" DockPanel.Dock="Left" Classes="mono" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0" Text="0:00.0"/>
                         <Slider x:Name="PositionSlider" Minimum="0" Maximum="1" VerticalAlignment="Center" ValueChanged="OnSeek"/>

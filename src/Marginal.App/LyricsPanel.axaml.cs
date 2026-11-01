@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -45,6 +46,7 @@ public sealed partial class LyricsPanel : UserControl
         Keep.Tick(settings, window, ToTag, "lyrics.toTag");
         Keep.Tick(settings, window, ToLrc, "lyrics.toLrc");
         Keep.Tick(settings, window, TimesInTag, "lyrics.timesInTag");
+        Keep.Level(settings, window, VolumeSlider, "lyrics.volume");
     }
 
     /// Text in the editor not yet put in Pending with Use (an update waits for it).
@@ -161,7 +163,10 @@ public sealed partial class LyricsPanel : UserControl
     private void OnPlay(object? sender, RoutedEventArgs e)
     {
         if (_track is null || !Player.IsAvailable) return;
-        _player ??= new Player(GainMode.Off);
+        // Album ReplayGain when the tags have it, as AlbumWall plays an album,
+        // then the volume slider: at full scale with neither, a loud master
+        // played as hot as digital audio goes (Dave, 2026-10-31).
+        _player ??= new Player(GainMode.Album) { Volume = (int)Math.Round(VolumeSlider.Value) };
         if (_playing != _track.Path)
         {
             _playing = _track.Path;
@@ -170,6 +175,11 @@ public sealed partial class LyricsPanel : UserControl
         }
         else _player.TogglePause();
         Tick();
+    }
+
+    private void OnVolume(object? sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_player is not null) _player.Volume = (int)Math.Round(e.NewValue);
     }
 
     /// The engine closed for good (the window is going).

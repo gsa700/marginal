@@ -33,6 +33,14 @@ internal static class Keep
         window.Closing += (_, _) => settings.Ticks[key] = box.IsChecked == true;
     }
 
+    /// A slider's value, 0-100 (the lyrics player's volume).
+    public static void Level(Settings settings, Window window, RangeBase slider, string key)
+    {
+        if (settings.Choices.TryGetValue(key, out var value))
+            slider.Value = Math.Clamp(value, (int)slider.Minimum, (int)slider.Maximum);
+        window.Closing += (_, _) => settings.Choices[key] = (int)Math.Round(slider.Value);
+    }
+
     /// A drop-down's choice.
     public static void Choice(Settings settings, Window window, ComboBox box, string key)
     {
