@@ -17,6 +17,9 @@ public sealed class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // On native Wayland Avalonia draws the title bars: only the buttons
+        // GNOME asks for, never its full-screen one (AlbumWall's DrawnCaptions).
+        DrawnCaptions.FollowTheDesktop();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var window = new MainWindow();
