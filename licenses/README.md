@@ -14,7 +14,7 @@ with it; the SHA-256 says exactly which text this is.
 | file | covers | from | ref | path | SHA-256 |
 |---|---|---|---|---|---|
 | [dotnet-runtime-LICENSE.TXT](dotnet-runtime-LICENSE.TXT) | .NET runtime (MIT) | https://github.com/dotnet/runtime | `v10.0.0` | `LICENSE.TXT` | `cfc21f5e8bd655ae997eec916138b707b1d290b83272c02a95c9f821b8c87310` |
-| [avalonia-licence.md](avalonia-licence.md) | Avalonia (MIT) | https://github.com/AvaloniaUI/Avalonia | `12.1.2` | `licence.md` | `213814d306090074d234d760239ff0f67eb9b8d20eefb4d5631bb39dbe0b769b` |
+| [avalonia-licence.md](avalonia-licence.md) | Avalonia (MIT) | https://github.com/AvaloniaUI/Avalonia | `12.1.4` | `licence.md` | `213814d306090074d234d760239ff0f67eb9b8d20eefb4d5631bb39dbe0b769b` |
 | [skiasharp-LICENSE.md](skiasharp-LICENSE.md) | SkiaSharp and HarfBuzzSharp (MIT) | https://github.com/mono/SkiaSharp | `default branch` | `LICENSE.md` | `ad9ec300dcb006b80c012b9d263c0e0dc26fcbfdcd0c02e8c4181365b7c1439b` |
 | [skia-LICENSE.txt](skia-LICENSE.txt) | Skia (BSD 3-Clause) | https://github.com/google/skia | `default branch` | `LICENSE` | `5f787c1dee3c56547f09ccc2906ab5f5293c4d8dd6c8654e573216c38e908dbd` |
 | [freetype-FTL.TXT](freetype-FTL.TXT) | FreeType (the FreeType License), inside Skia's Linux build | https://github.com/freetype/freetype | `default branch` | `docs/FTL.TXT` | `5a5ee54c5001bbad1cdc1a57cc3dd4c42199b2da09d39c7ee41fab002d02967f` |

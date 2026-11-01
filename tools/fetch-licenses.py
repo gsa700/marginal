@@ -39,7 +39,7 @@ OUT = os.path.join(ROOT, "licenses")
 WANTED = [
     # ---- the application
     ("dotnet-runtime-LICENSE.TXT", ".NET runtime (MIT)", "dotnet/runtime", ["v10.0.0", None], ["LICENSE.TXT"]),
-    ("avalonia-licence.md", "Avalonia (MIT)", "AvaloniaUI/Avalonia", ["12.1.2", None], ["licence.md", "LICENSE.md", "LICENSE"]),
+    ("avalonia-licence.md", "Avalonia (MIT)", "AvaloniaUI/Avalonia", ["12.1.4", None], ["licence.md", "LICENSE.md", "LICENSE"]),
     ("skiasharp-LICENSE.md", "SkiaSharp and HarfBuzzSharp (MIT)", "mono/SkiaSharp", [None], ["LICENSE.md", "LICENSE.txt", "LICENSE"]),
     ("skia-LICENSE.txt", "Skia (BSD 3-Clause)", "google/skia", [None], ["LICENSE"]),
     ("freetype-FTL.TXT", "FreeType (the FreeType License), inside Skia's Linux build", "freetype/freetype", [None], ["docs/FTL.TXT"]),

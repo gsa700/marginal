@@ -44,7 +44,7 @@ rewritten function for function in another language.
   License: MIT.
   Source: https://github.com/dotnet/runtime
 
-- **Avalonia 12.1.2** — the user-interface toolkit: every window, control and
+- **Avalonia 12.1.4** — the user-interface toolkit: every window, control and
   animation. Includes the Fluent theme.
   License: MIT.
   Source: https://github.com/AvaloniaUI/Avalonia
