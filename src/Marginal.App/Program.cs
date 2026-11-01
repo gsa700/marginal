@@ -13,6 +13,11 @@ internal static class Program
         // System libraries from the system's places, before anything loads one (NativeLoading).
         NativeLoading.Install();
 
+        // The log and the crash catcher (Diagnostics). Errors escaping a click
+        // are shown and survived (App), and go to the log through Console.Error.
+        LogFile.Start();
+        Diagnostics.CatchCrashes();
+
         // Who this program is to Windows, before any window exists (WindowsShell).
         WindowsShell.ClaimIdentity();
 
@@ -72,7 +77,9 @@ internal static class Program
 
     public static AppBuilder BuildAvaloniaApp()
     {
-        var builder = AppBuilder.Configure<App>().UsePlatformDetect().WithInterFont();
+        var builder = AppBuilder.Configure<App>().UsePlatformDetect().WithInterFont()
+            // Avalonia's own warnings (bindings, layout) into the log, not nowhere.
+            .AfterSetup(_ => Avalonia.Logging.Logger.Sink = new ConsoleLogSink(Avalonia.Logging.LogEventLevel.Warning));
         // The system draws the title bar for now; Deadwax's drawn title bar
         // (and its Wayland ForceDrawnDecorations) comes when this window gets one.
         return NativeWayland ? builder.UseWayland() : builder;

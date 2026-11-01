@@ -157,6 +157,20 @@
                             <Button Classes="tool" Content="AlbumWall" Margin="0,0,8,8" Click="OnAlbumWall"/>
                             <Button Classes="tool" Content="Deadwax" Margin="0,0,8,8" Click="OnDeadwax"/>
                         </WrapPanel>
+                        <!-- WHEN SOMETHING GOES WRONG (Diagnostics.cs, 2026-11-01). The
+                             report goes on the clipboard and nowhere else: the app never
+                             sends anything. The log folder is one click away for anyone
+                             asked for the whole log. -->
+                        <StackPanel Spacing="6" Margin="0,8,0,0">
+                            <TextBlock x:Name="DiagnosticsStatus" Classes="dim" FontSize="13" LineHeight="20"
+                                       TextWrapping="Wrap"/>
+                            <StackPanel Orientation="Horizontal" Spacing="9">
+                                <Button Classes="tool" Content="Copy diagnostics" Click="OnCopyDiagnostics"/>
+                                <Button Classes="tool" Content="Show the log" Click="OnShowLog"/>
+                            </StackPanel>
+                            <TextBlock x:Name="DiagnosticsResult" Classes="dim" FontSize="13" TextWrapping="Wrap"
+                                       AutomationProperties.LiveSetting="Polite"/>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </Panel>

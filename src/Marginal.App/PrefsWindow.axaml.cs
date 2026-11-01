@@ -1,4 +1,6 @@
 using Avalonia.Controls;
+using Avalonia.Platform.Storage;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -37,6 +39,7 @@ public sealed partial class PrefsWindow : Window
         ShowPage();
 
         VersionText.Text = $"Version {UpdateService.CurrentVersion}";
+        FillDiagnostics();
         try { AppIcon.Source = new Bitmap(AssetLoader.Open(new Uri("avares://Marginal/Assets/icon-256.png"))); } catch (Exception) { }
         AutoCheckBox.IsChecked = settings.CheckForUpdates;
         EdgeBox.IsChecked = settings.EdgeChannel;
@@ -151,4 +154,42 @@ public sealed partial class PrefsWindow : Window
     private void OnDeadwax(object? sender, RoutedEventArgs e) => Open("https://github.com/gsa700/deadwax");
 
     private void Open(string url) => _ = Launcher.LaunchUriAsync(new Uri(url));
+
+    // DIAGNOSTICS (Diagnostics.cs): a report on the clipboard, and the log's folder.
+    private void FillDiagnostics() =>
+        DiagnosticsStatus.Text =
+            "If something goes wrong, Copy diagnostics puts a report on the clipboard, ready to paste into "
+          + "a GitHub issue or a message: the version, this system, the last crash if there was one, and "
+          + "the end of the log. It names folders on this computer, so look it over before you send it."
+          + (Diagnostics.LastCrash is { } when
+                ? $" {App.DisplayName} last closed unexpectedly on {when:dddd d MMMM 'at' HH:mm}."
+                : "");
+
+    private async void OnCopyDiagnostics(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        try
+        {
+            if (Clipboard is not { } clipboard) throw new InvalidOperationException("there is no clipboard here");
+            await clipboard.SetTextAsync(Diagnostics.Report());
+            DiagnosticsResult.Text = "Copied. Paste it wherever you are reporting the problem.";
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsResult.Text = $"Could not copy it: {ex.Message}";
+        }
+    }
+
+    private void OnShowLog(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        try
+        {
+            var folder = new DirectoryInfo(Path.GetDirectoryName(LogFile.Path)!);
+            _ = Launcher.LaunchDirectoryInfoAsync(folder);
+            DiagnosticsResult.Text = $"The log is {LogFile.Path}";
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsResult.Text = $"Could not open the folder: {ex.Message}";
+        }
+    }
 }
