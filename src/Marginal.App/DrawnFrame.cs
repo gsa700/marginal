@@ -18,14 +18,23 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace Marginal.App;
 
 internal sealed class DrawnFrame
 {
-    /// Everywhere but the Mac, which keeps its own title bar and corners.
+    /// Everywhere but the Mac, which keeps its own window, corners and shadow
+    /// and only has its title bar folded into the app's own (UseMacTitleBar).
     public static bool Wanted => !OperatingSystem.IsMacOS();
+
+    /// The bar's height on the Mac, which the traffic lights are centred on.
+    private const double MacBarHeight = 44;
+
+    /// How much of the bar's leading end the traffic lights take on the Mac:
+    /// the three buttons and the gap the system leaves round them (Deadwax's).
+    private const double MacTrafficLightsWidth = 70;
 
     /// The transparent margin round a normal window that holds its shadow
     /// (Dave, 2026-10-31: with no shadow the light dialogs melted into the
@@ -60,11 +69,59 @@ internal sealed class DrawnFrame
     /// Close only, as GNOME's own dialogs do: "we only need X on prefs".
     public static void Attach(Window window, Border surface, Border bar, StackPanel left, StackPanel right, bool owned)
     {
-        if (!Wanted) return;
         var frame = new DrawnFrame(window, surface);
+        bar.PointerPressed += frame.OnBarPressed;
+        if (!Wanted)
+        {
+            frame.UseMacTitleBar(bar, left);
+            return;
+        }
         frame.Undecorate();
         frame.AddButtons(bar, left, right, owned);
-        bar.PointerPressed += frame.OnBarPressed;
+    }
+
+    /// The Mac: a REAL title bar, extended under the app's bar, as Deadwax and
+    /// AlbumWall have (Dave, 2026-10-31: "why isn't the titlebar integrated on
+    /// macOS?"). macOS keeps drawing the traffic lights, the corners and the
+    /// shadow, and resizes at its own edges; the bar drags and zooms on a
+    /// double click (OnBarPressed). The green button zooms instead of entering
+    /// full screen, as in the other two (MacWindow).
+    private void UseMacTitleBar(Border bar, StackPanel left)
+    {
+        _window.ExtendClientAreaToDecorationsHint = true;
+        bar.Height = MacBarHeight;
+        // Avalonia's own layout reads this as the title bar's height; the
+        // lights are centred by CenterTrafficLights, which the hint does not do.
+        _window.ExtendClientAreaTitleBarHeightHint = MacBarHeight;
+        left.Width = MacTrafficLightsWidth;   // their place kept clear
+        left.Margin = new Thickness(-8, 0, 6, 0);
+        _window.Opened += (_, _) =>
+        {
+            var h = _window.TryGetPlatformHandle();
+            MacWindow.ZoomInsteadOfFullScreen(h?.Handle ?? IntPtr.Zero, h?.HandleDescriptor);
+            CenterTrafficLights();
+        };
+        // AppKit lays its title bar out again after each of these and puts the
+        // lights back where it keeps them, so they are moved again once it has.
+        _window.SizeChanged += (_, _) => RecenterTrafficLights();
+        _window.Activated += (_, _) => RecenterTrafficLights();
+        _window.Deactivated += (_, _) => RecenterTrafficLights();
+        _window.PropertyChanged += (_, e) => { if (e.Property == Window.WindowStateProperty) RecenterTrafficLights(); };
+    }
+
+    private void CenterTrafficLights()
+    {
+        var h = _window.TryGetPlatformHandle();
+        MacWindow.CenterTrafficLights(h?.Handle ?? IntPtr.Zero, h?.HandleDescriptor, MacBarHeight);
+    }
+
+    /// At once and again once AppKit is done: during a live resize it lays the
+    /// title bar out on every frame, and moved only afterwards the lights
+    /// jumped about until the drag stopped (AlbumWall, 2026-10-18).
+    private void RecenterTrafficLights()
+    {
+        CenterTrafficLights();
+        Dispatcher.UIThread.Post(CenterTrafficLights, DispatcherPriority.Render);
     }
 
     /// A window with no header of its own (Preferences, the confirm box): its

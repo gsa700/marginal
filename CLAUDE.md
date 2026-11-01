@@ -57,7 +57,7 @@ places saying so; a fix in one goes to the other.
 
 Kept identical to its source, each file saying so; a fix in one goes to the
 other: `src/Marginal.Codecs` and `src/Marginal.Playback` (AlbumWall's Hymie),
-`ImageSize.cs` (AlbumWall), `WebLimits.cs` and `AppVersion.cs` (Deadwax). Made
+`ImageSize.cs` (AlbumWall), `WebLimits.cs`, `AppVersion.cs` and `MacWindow.cs` (Deadwax). Made
 from a source and then changed: `MusicBrainzClient.cs` (Deadwax's), the install
 and update code in `src/Marginal.App/Install`, `InstallFlow.cs`,
 `UpdateService.cs`, `MacUpdate.cs`, `MacInstaller.cs`, `WindowsShell.cs`, `WindowPlacement.cs`,

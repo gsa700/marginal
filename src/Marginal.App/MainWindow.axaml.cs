@@ -34,8 +34,8 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        // Off the Mac, a title bar of its own on the tab strip (DrawnFrame).
-        if (DrawnFrame.Wanted) TitleText.IsVisible = true;
+        // The tab strip is the title bar, on the Mac too (DrawnFrame).
+        TitleText.IsVisible = true;
         DrawnFrame.Attach(this, Surface, TopBar, LeftButtons, RightButtons, owned: false);
         // The size it had, then (at Opened) where it was (Dave, 2026-10-31).
         if (_settings.Width is { } w) Width = Math.Max(w, MinWidth);
