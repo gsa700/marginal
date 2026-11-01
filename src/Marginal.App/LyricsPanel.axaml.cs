@@ -457,13 +457,19 @@ public sealed partial class LyricsPanel : UserControl
 
     /// Every track without synced lyrics is asked about; a fit within 2 s with
     /// the same artist and title goes to Pending, the rest wait to be looked
-    /// at (spec §3.2).
+    /// at (spec §3.2). A track LRCLIB does not answer for (after the client's
+    /// own retries) is marked so and the rest are still asked: one 503 used to
+    /// end the whole album after its first track (Dave, 2026-10-31). Three
+    /// such tracks in a row and LRCLIB is taken to be down for now.
     private async void OnFindAll(object? sender, RoutedEventArgs e)
     {
         if (_album is null) return;
         var cancel = Restart();
         var asked = 0;
         var queued = 0;
+        var failed = 0;
+        var inARow = 0;
+        string? lastError = null;
         var tracks = _album.Tracks.Where(t => t.Lyrics != LyricsKind.Synced && t.Problem is null).ToList();
         try
         {
@@ -471,23 +477,46 @@ public sealed partial class LyricsPanel : UserControl
             {
                 asked++;
                 Busy($"Asking LRCLIB: {asked} of {tracks.Count} tracks, {queued} found so far…");
-                if (await Find(track, cancel.Token, automatic: true)) queued++;
+                try
+                {
+                    if (await Find(track, cancel.Token, automatic: true)) queued++;
+                    inARow = 0;
+                }
+                catch (LrcLibException ex)
+                {
+                    failed++;
+                    inARow++;
+                    lastError = ex.Message;
+                    _results.Remove(track.Path);
+                    if (_rows.FirstOrDefault(r => r.Track.Path == track.Path) is { } row) row.Found = ("LRCLIB didn't answer", Tone.Missing);
+                    if (inARow >= MaxFailuresInARow) break;
+                }
             }
             Busy(null);
-            FoundNote.Text = tracks.Count == 0 ? "Every track already has synced lyrics."
-                : $"{queued} of {tracks.Count} tracks found and added to Pending; the rest are marked to look at.";
+            FoundNote.Text = FindAllNote(tracks.Count, asked, queued, failed, inARow >= MaxFailuresInARow, lastError);
         }
         catch (OperationCanceledException) { }
-        catch (LrcLibException ex)
-        {
-            Busy(null);
-            FoundNote.Text = $"{ex.Message} after {asked - 1} of {tracks.Count} tracks. Try again later.";
-        }
         catch (Exception ex)
         {
             Busy(null);
             FoundNote.Text = $"LRCLIB: {ex.Message} after {asked - 1} of {tracks.Count} tracks.";
         }
+    }
+
+    /// Tracks in a row LRCLIB may fail before the album search stops.
+    private const int MaxFailuresInARow = 3;
+
+    /// What Find lyrics for the album says when it is done.
+    public static string FindAllNote(int tracks, int asked, int queued, int failed, bool stopped, string? error)
+    {
+        if (tracks == 0) return "Every track already has synced lyrics.";
+        var found = $"{queued} of {tracks} tracks found and added to Pending";
+        if (failed == 0) return $"{found}; the rest are marked to look at.";
+        var notAsked = tracks - asked;
+        var why = error is null ? "" : $" ({error})";
+        return stopped
+            ? $"{found}. LRCLIB stopped answering{why}: {failed + notAsked} not asked. Press Find lyrics for the album again later for those."
+            : $"{found}. {failed} couldn't be asked{why}: press Find lyrics for the album again for those.";
     }
 
     /// Asks LRCLIB about one track: its exact match first, then a search.

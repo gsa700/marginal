@@ -39,8 +39,17 @@ public sealed class LrcLibClient : IDisposable
 
     private readonly HttpClient _http;
 
-    public LrcLibClient(HttpMessageHandler? handler = null)
+    /// The waits before the second and third tries of a question LRCLIB did
+    /// not answer (a 5xx, a dropped connection, a timeout). Three tries, not
+    /// two: on 2026-10-31 a 503 twice in a row, 2 s apart, ended Find lyrics
+    /// for the album after its first track (Dave, Techbench).
+    public static readonly TimeSpan[] DefaultRetryWaits = [TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(6)];
+
+    private readonly TimeSpan[] _retryWaits;
+
+    public LrcLibClient(HttpMessageHandler? handler = null, TimeSpan[]? retryWaits = null)
     {
+        _retryWaits = retryWaits ?? DefaultRetryWaits;
         _http = handler is null ? new HttpClient() : new HttpClient(handler);
         _http.BaseAddress = new Uri("https://lrclib.net/api/");
         _http.Timeout = TimeSpan.FromSeconds(20);
@@ -74,6 +83,7 @@ public sealed class LrcLibClient : IDisposable
     {
         for (var attempt = 1; ; attempt++)
         {
+            var last = attempt > _retryWaits.Length;
             try
             {
                 using var response = await _http.GetAsync(path, ct);
@@ -81,16 +91,16 @@ public sealed class LrcLibClient : IDisposable
                 if (response.IsSuccessStatusCode)
                     return await WebLimits.ReadCappedAsync(response.Content, Json.MaxAnswerBytes, ct)
                            ?? throw new LrcLibException("LRCLIB sent an answer too large to be one");
-                if ((int)response.StatusCode < 500 || attempt >= 2)
+                if ((int)response.StatusCode < 500 || last)
                     throw new LrcLibException($"LRCLIB answered {(int)response.StatusCode}");
             }
-            catch (HttpRequestException e) when (attempt >= 2) { throw new LrcLibException($"LRCLIB is not answering ({e.HttpRequestError})"); }
+            catch (HttpRequestException e) when (last) { throw new LrcLibException($"LRCLIB is not answering ({e.HttpRequestError})"); }
             catch (HttpRequestException) { }
             catch (TaskCanceledException) when (!ct.IsCancellationRequested)
             {
-                if (attempt >= 2) throw new LrcLibException("LRCLIB is not answering (timed out)");
+                if (last) throw new LrcLibException("LRCLIB is not answering (timed out)");
             }
-            await Task.Delay(TimeSpan.FromSeconds(2), ct);
+            await Task.Delay(_retryWaits[attempt - 1], ct);
         }
     }
 
