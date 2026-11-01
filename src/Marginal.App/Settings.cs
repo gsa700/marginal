@@ -29,6 +29,12 @@ public sealed class Settings
     public double? ArtHeight { get; set; }
     public int? PrefsX { get; set; }
     public int? PrefsY { get; set; }
+    /// Preferences' size, once dragged; at 100% text (TextSize), as every size here is.
+    public double? PrefsWidth { get; set; }
+    public double? PrefsHeight { get; set; }
+
+    /// Text size in percent (Preferences, Accessibility); absent is 100.
+    public int? TextSize { get; set; }
 
     // Everything else that is kept (Keep): pane widths, ticks, choices,
     // and the library folder, tab and view last open.

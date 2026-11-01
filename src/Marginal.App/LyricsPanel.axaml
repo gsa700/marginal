@@ -56,7 +56,12 @@
                     <TextBlock Classes="label" Text="TRACKS"/>
                     <TextBlock x:Name="TrackCounts" Classes="mono dim" TextWrapping="Wrap"/>
                 </StackPanel>
-                <ListBox x:Name="TrackList" Classes="tracks" SelectionChanged="OnTrackSelected">
+                <ListBox x:Name="TrackList" Classes="tracks" SelectionChanged="OnTrackSelected" AutomationProperties.Name="Tracks">
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem" x:DataType="app:LyricsRow">
+                            <Setter Property="AutomationProperties.Name" Value="{Binding Spoken}"/>
+                        </Style>
+                    </ListBox.Styles>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="app:LyricsRow">
                             <StackPanel Margin="16,7" Spacing="4">
@@ -80,7 +85,7 @@
             </DockPanel>
         </Border>
 
-        <GridSplitter Grid.Column="1" Width="5" Background="Transparent" ResizeDirection="Columns"/>
+        <GridSplitter Grid.Column="1" Width="5" Background="Transparent" ResizeDirection="Columns" AutomationProperties.Name="Track list width: arrow keys"/>
 
         <!-- Editor. -->
         <DockPanel Grid.Column="2" Margin="20,18">
@@ -92,7 +97,8 @@
                     </StackPanel>
                 </Border>
                 <StackPanel Spacing="2">
-                    <TextBlock x:Name="TrackTitle" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="TrackTitle" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                               AutomationProperties.HeadingLevel="1"/>
                     <TextBlock x:Name="TrackLine" Classes="dim"/>
                 </StackPanel>
             </DockPanel>
@@ -103,7 +109,8 @@
                 <StackPanel Spacing="8">
                     <DockPanel>
                         <Button x:Name="PlayButton" DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="18" Padding="0"
-                                Classes="tool" HorizontalContentAlignment="Center" Click="OnPlay" Margin="0,0,10,0">
+                                Classes="tool" HorizontalContentAlignment="Center" Click="OnPlay" Margin="0,0,10,0"
+                                AutomationProperties.Name="Play">
                             <TextBlock x:Name="PlayGlyph" Text="▶" FontSize="13" HorizontalAlignment="Center"/>
                         </Button>
                         <!-- This app's own volume, remembered (Dave, 2026-10-31: "it looks
@@ -113,15 +120,17 @@
                             <Path Width="14" Height="14" Stretch="Uniform" Fill="{DynamicResource Soft}" VerticalAlignment="Center"
                                   Data="M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/>
                             <Slider x:Name="VolumeSlider" Width="96" Minimum="0" Maximum="100" Value="70" VerticalAlignment="Center"
+                                    AutomationProperties.Name="Volume"
                                     ValueChanged="OnVolume"/>
                         </StackPanel>
                         <TextBlock x:Name="DurationText" DockPanel.Dock="Right" Classes="mono soft" FontSize="12" VerticalAlignment="Center" Margin="10,0,0,0" Text="0:00.0"/>
                         <TextBlock x:Name="PositionText" DockPanel.Dock="Left" Classes="mono" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0" Text="0:00.0"/>
-                        <Slider x:Name="PositionSlider" Minimum="0" Maximum="1" VerticalAlignment="Center" ValueChanged="OnSeek"/>
+                        <Slider x:Name="PositionSlider" Minimum="0" Maximum="1" VerticalAlignment="Center" ValueChanged="OnSeek"
+                                AutomationProperties.Name="Position in the track"/>
                     </DockPanel>
                     <WrapPanel>
                         <ToggleButton x:Name="TapButton" Classes="seg" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource Edge}"
-                                      Margin="0,0,8,0" Click="OnTap">
+                                      Margin="0,0,8,0" Click="OnTap" AutomationProperties.Name="Tap to time, Space stamps a line">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock Text="Tap to time" VerticalAlignment="Center"/>
                                 <Border BorderBrush="{DynamicResource Edge}" BorderThickness="1" CornerRadius="3" Padding="4,0">
@@ -129,7 +138,8 @@
                                 </Border>
                             </StackPanel>
                         </ToggleButton>
-                        <Button x:Name="BackLineButton" Classes="tool" Height="30" FontSize="12" Margin="0,0,8,0" IsEnabled="False" Click="OnBackLine">
+                        <Button x:Name="BackLineButton" Classes="tool" Height="30" FontSize="12" Margin="0,0,8,0" IsEnabled="False" Click="OnBackLine"
+                                AutomationProperties.Name="Back a line">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <TextBlock Text="Back a line" VerticalAlignment="Center"/>
                                 <Border BorderBrush="{DynamicResource Edge}" BorderThickness="1" CornerRadius="3" Padding="4,0">
@@ -137,14 +147,16 @@
                                 </Border>
                             </StackPanel>
                         </Button>
-                        <Button Classes="tool" Height="30" FontSize="12" Content="−0.1 s" Margin="0,0,6,0" Click="OnNudgeBack"/>
-                        <Button Classes="tool" Height="30" FontSize="12" Content="+0.1 s" Margin="0,0,6,0" Click="OnNudgeOn"/>
+                        <Button Classes="tool" Height="30" FontSize="12" Content="−0.1 s" Margin="0,0,6,0" Click="OnNudgeBack"
+                                AutomationProperties.Name="Line a tenth of a second sooner"/>
+                        <Button Classes="tool" Height="30" FontSize="12" Content="+0.1 s" Margin="0,0,6,0" Click="OnNudgeOn"
+                                AutomationProperties.Name="Line a tenth of a second later"/>
                         <Button x:Name="ShiftButton" Classes="tool" Height="30" FontSize="12" Content="Shift all…">
                             <Button.Flyout>
                                 <Flyout Placement="BottomEdgeAlignedLeft">
                                     <StackPanel Spacing="8" Width="240">
                                         <TextBlock TextWrapping="Wrap" FontSize="12" Text="Move every timed line by this many seconds (minus for sooner)."/>
-                                        <NumericUpDown x:Name="ShiftBy" Value="0" Increment="0.1" FormatString="0.0" Minimum="-600" Maximum="600"/>
+                                        <NumericUpDown x:Name="ShiftBy" AutomationProperties.Name="Seconds to shift every line by" Value="0" Increment="0.1" FormatString="0.0" Minimum="-600" Maximum="600"/>
                                         <Button Classes="tool" Content="Shift" Click="OnShift"/>
                                     </StackPanel>
                                 </Flyout>
@@ -173,7 +185,7 @@
                 <TextBlock x:Name="EditorNote" Classes="mono dim" VerticalAlignment="Center" TextWrapping="Wrap"/>
             </DockPanel>
 
-            <TextBox x:Name="Editor" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="{StaticResource Mono}" FontSize="13"
+            <TextBox x:Name="Editor" AutomationProperties.Name="Lyrics" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="{StaticResource Mono}" FontSize="13"
                      VerticalContentAlignment="Top" Padding="12,10" TextChanged="OnEdited"
                      PlaceholderText="No lyrics. Type or paste them here, or find them with LRCLIB on the right."/>
         </DockPanel>
@@ -189,7 +201,7 @@
                     <Border x:Name="BusyBar" IsVisible="False" Background="{DynamicResource Selected}" BorderBrush="{DynamicResource Accent}"
                             BorderThickness="1" CornerRadius="6" Padding="12,10">
                         <StackPanel Spacing="8">
-                            <TextBlock x:Name="BusyText" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource Accent}" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="BusyText" AutomationProperties.LiveSetting="Polite" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource Accent}" TextWrapping="Wrap"/>
                             <ProgressBar IsIndeterminate="True" Height="4" MinHeight="4" Foreground="{DynamicResource Accent}" Background="#DCE8F7"/>
                         </StackPanel>
                     </Border>
@@ -215,8 +227,10 @@
                                         </DockPanel>
                                         <TextBlock Classes="mono soft" Text="{Binding Detail}" TextWrapping="Wrap" LineHeight="16"/>
                                         <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-                                            <Button Classes="tool" Height="28" FontSize="12" Content="Use this" Click="OnUseResult" Tag="{Binding}"/>
-                                            <Button Classes="tool" Height="28" FontSize="12" Content="Preview" Click="OnPreviewResult" Tag="{Binding}"/>
+                                            <Button Classes="tool" Height="28" FontSize="12" Content="Use this" Click="OnUseResult" Tag="{Binding}"
+                                                    AutomationProperties.Name="{Binding UseName}"/>
+                                            <Button Classes="tool" Height="28" FontSize="12" Content="Preview" Click="OnPreviewResult" Tag="{Binding}"
+                                                    AutomationProperties.Name="{Binding PreviewName}"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
@@ -226,19 +240,19 @@
 
                     <Border Height="1" Background="{DynamicResource RowRule}"/>
                     <TextBlock Classes="label" Text="WRITE LYRICS TO"/>
-                    <CheckBox x:Name="ToTag" IsChecked="True" FontSize="12">
+                    <CheckBox x:Name="ToTag" IsChecked="True" FontSize="12" AutomationProperties.Name="Write lyrics to the file's lyrics tag">
                         <StackPanel Spacing="1">
                             <TextBlock Text="The file's lyrics tag" FontSize="12"/>
                             <TextBlock Classes="mono dim" Text="LYRICS (FLAC) · USLT (MP3) · ©lyr (M4A)"/>
                         </StackPanel>
                     </CheckBox>
-                    <CheckBox x:Name="ToLrc" IsChecked="True" FontSize="12">
+                    <CheckBox x:Name="ToLrc" IsChecked="True" FontSize="12" AutomationProperties.Name="Write a synced .lrc beside the track, only for lyrics with times">
                         <StackPanel Spacing="1">
                             <TextBlock Text="A synced .lrc beside the track" FontSize="12"/>
                             <TextBlock Classes="mono dim" Text="only for lyrics with times"/>
                         </StackPanel>
                     </CheckBox>
-                    <CheckBox x:Name="TimesInTag" FontSize="12">
+                    <CheckBox x:Name="TimesInTag" FontSize="12" AutomationProperties.Name="Keep the time codes inside the tag">
                         <StackPanel Spacing="1">
                             <TextBlock Text="Keep the time codes inside the tag" FontSize="12"/>
                             <TextBlock Classes="dim" FontSize="11" TextWrapping="Wrap" Text="Some players follow them; others show the [01:12.40] codes as text."/>

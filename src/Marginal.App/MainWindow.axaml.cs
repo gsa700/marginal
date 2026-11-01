@@ -34,12 +34,18 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // The text size chosen in Preferences, then every window drawn at it;
+        // inside the frame, so the frame stays its own size (TextSize).
+        TextSize.Choose(_settings.TextSize);
+        TextSize.Follow(this);
+        SetUpKeys();
         // The tab strip is the title bar, on the Mac too (DrawnFrame).
         TitleText.IsVisible = true;
         DrawnFrame.Attach(this, Surface, TopBar, LeftButtons, RightButtons, owned: false);
         // The size it had, then (at Opened) where it was (Dave, 2026-10-31).
-        if (_settings.Width is { } w) Width = Math.Max(w, MinWidth);
-        if (_settings.Height is { } h) Height = Math.Max(h, MinHeight);
+        // Kept at 100% text, drawn at the text size (TextSize).
+        if (_settings.Width is { } w) Width = Math.Max(w * TextSize.Factor, MinWidth);
+        if (_settings.Height is { } h) Height = Math.Max(h * TextSize.Factor, MinHeight);
         if (_settings.Maximized && Program.NativeWayland) WindowState = WindowState.Maximized;
         PositionChanged += (_, _) => { if (_placed && WindowState == WindowState.Normal) _normalPosition = Position; };
         // Panes and the Lyrics tab's ticks, saved by SavePlacement after them.
@@ -101,7 +107,7 @@ public sealed partial class MainWindow : Window
         _settings.RawView = _rawView;
         if (WindowState == WindowState.Normal)
         {
-            (_settings.Width, _settings.Height) = (Math.Round(Bounds.Width), Math.Round(Bounds.Height));
+            (_settings.Width, _settings.Height) = (Math.Round(Bounds.Width / TextSize.Factor), Math.Round(Bounds.Height / TextSize.Factor));
             _normalPosition = Position;
         }
         if (!Program.NativeWayland && _normalPosition is { } p) (_settings.WindowX, _settings.WindowY) = (p.X, p.Y);
@@ -116,12 +122,12 @@ public sealed partial class MainWindow : Window
             case LookupWindow lookup: lookup.Remember(_settings); break;
             case ArtWindow art: art.Remember(_settings); break;
         }
-        if (width is { } w) window.Width = Math.Max(w, window.MinWidth);
-        if (height is { } h) window.Height = Math.Max(h, window.MinHeight);
+        if (width is { } w) window.Width = Math.Max(w * TextSize.Factor, window.MinWidth);
+        if (height is { } h) window.Height = Math.Max(h * TextSize.Factor, window.MinHeight);
         window.Closing += (_, _) =>
         {
             if (window.WindowState != WindowState.Normal) return;
-            keep(Math.Round(window.Bounds.Width), Math.Round(window.Bounds.Height));
+            keep(Math.Round(window.Bounds.Width / TextSize.Factor), Math.Round(window.Bounds.Height / TextSize.Factor));
             _settings.Save();
         };
         return window;
@@ -202,6 +208,9 @@ public sealed partial class MainWindow : Window
                     if (cancel.IsCancellationRequested) return;
                     var row = new AlbumRow(album);
                     _albums.Add(row);
+                    // The count is not read out album by album; what the scan ends with is.
+                    Avalonia.Automation.AutomationProperties.SetLiveSetting(ScanText,
+                        n < folders.Count ? Avalonia.Automation.AutomationLiveSetting.Off : Avalonia.Automation.AutomationLiveSetting.Polite);
                     ScanText.Text = n < folders.Count ? $"reading {n} of {folders.Count}" : "";
                     Refilter();
                     // Opened on an album (from AlbumWall, say): that album, at once.
@@ -405,6 +414,8 @@ public sealed partial class MainWindow : Window
     internal void ShowUpdateDot(bool show)
     {
         UpdateDot.IsVisible = show;
+        Avalonia.Automation.AutomationProperties.SetName(GearButton, !show ? "Preferences"
+            : LastUpdateFailed ? "Preferences: the last update did not finish" : "Preferences: an update is available");
         _prefs?.FillUpdate();
     }
 
@@ -456,10 +467,20 @@ public sealed partial class MainWindow : Window
         : Lyrics.HasUnusedText ? "The lyrics editor holds text not yet Used; Use or Revert it first; the update restarts Marginal."
         : null;
 
-    private void OnPrefs(object? sender, RoutedEventArgs e)
+    private void OnPrefs(object? sender, RoutedEventArgs e) => ShowPrefs(null);
+
+    /// Preferences, brought forward if it is open; on a page when one is named
+    /// (F1: Keys), else where it was.
+    internal void ShowPrefs(PrefsWindow.Page? page)
     {
-        if (_prefs is { } open) { open.Activate(); return; }
+        if (_prefs is { } open)
+        {
+            if (page is { } p) open.Select(p);
+            open.Activate();
+            return;
+        }
         _prefs = new PrefsWindow(this, _settings);
+        if (page is { } first) _prefs.Select(first);
         _prefs.Closed += (_, _) => _prefs = null;
         _prefs.Show(this);
     }
@@ -472,6 +493,8 @@ public sealed partial class MainWindow : Window
         var lyrics = ReferenceEquals(sender, LyricsTab);
         TagsTab.Classes.Set("on", !lyrics);
         LyricsTab.Classes.Set("on", lyrics);
+        Avalonia.Automation.AutomationProperties.SetName(TagsTab, lyrics ? "Tags & art" : "Tags & art, open");
+        Avalonia.Automation.AutomationProperties.SetName(LyricsTab, lyrics ? "Lyrics, open" : "Lyrics");
         Lyrics.IsVisible = lyrics;
         AlbumPane.IsVisible = !lyrics;
         ArtPane.IsVisible = !lyrics;
@@ -504,6 +527,10 @@ public sealed partial class MainWindow : Window
         EditBox.Text = pending is not null ? pending.To ?? "" : album.Fields.First(f => f.Field == field).Common ?? "";
         EditApply.Content = $"Set on all {album.Tracks.Count} files";
         EditBar.IsVisible = true;
+        // A click goes straight to the text box; the arrow keys stay in the
+        // list, and Enter goes in (MainWindow.Keys).
+        if (!_fieldByPointer) return;
+        _fieldByPointer = false;
         EditBox.Focus();
         EditBox.SelectAll();
     }
@@ -519,8 +546,10 @@ public sealed partial class MainWindow : Window
 
     private void OnEditCancel(object? sender, RoutedEventArgs e)
     {
+        var field = EditBar.Tag as Field;
         EditBar.IsVisible = false;
         FieldList.SelectedItem = null;
+        BackToFields(field);
     }
 
     private void Edit(string? value)
@@ -528,6 +557,7 @@ public sealed partial class MainWindow : Window
         if (EditBar.Tag is not Field field || _album is not { } album) return;
         AddPending(Pending.SetField(album, field, value), field);
         EditBar.IsVisible = false;
+        BackToFields(field);
     }
 
     /// The lookup sheet; what is ticked there joins this album's Pending.

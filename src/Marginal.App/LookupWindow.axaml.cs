@@ -33,6 +33,7 @@ public sealed partial class LookupWindow : Window
     {
         _album = album;
         InitializeComponent();
+        TextSize.Follow(this);   // before the frame: the frame stays its own size
         DrawnFrame.Attach(this, Surface, TopBar, LeftButtons, RightButtons, owned: true);
         AlbumLine.Text = $"{album.Artist} — {album.Title} · {album.Tracks.Count} files · {Length(album.Length)}";
         // A release ID already in the files is the first thing to look at.
@@ -230,11 +231,13 @@ public sealed class CandidateRow(ReleaseCandidate candidate, int files) : INotif
     public int? Fit
     {
         get;
-        set { field = value; PropertyChanged?.Invoke(this, new(nameof(FitText))); PropertyChanged?.Invoke(this, new(nameof(FitInk))); }
+        set { field = value; PropertyChanged?.Invoke(this, new(nameof(FitText))); PropertyChanged?.Invoke(this, new(nameof(FitInk))); PropertyChanged?.Invoke(this, new(nameof(Spoken))); }
     }
 
     public string FitText => Fit is { } f ? $"{f}%" : "";
     public IBrush FitInk => Fit switch { >= 90 => Tones.OkText, >= 60 => Tones.WarnText, _ => Tones.BadText };
+    public string Spoken => Speech.Join(Title, Line, Codes, TracksText, Candidate.Tagged ? "your files' release" : "",
+        FitText.Length > 0 ? $"fit {FitText}" : "");
 
     public event PropertyChangedEventHandler? PropertyChanged;
 }
@@ -248,6 +251,8 @@ public sealed record PairRow(Pair Pair)
     public string Fit => Pair.Fit;
     public IBrush Ink => Tones.Of(Pair.Tone).Text;
     public IBrush Fill => Tones.Of(Pair.Tone).Fill;
+    public string Spoken => Speech.Join(File, $"paired with {Track}", Yours.Length > 0 ? $"yours {Yours}" : "",
+        Theirs.Length > 0 ? $"theirs {Theirs}" : "", Fit);
 }
 
 public sealed class TakeRow(TakeItem item, int index, bool on) : INotifyPropertyChanged
@@ -262,6 +267,8 @@ public sealed class TakeRow(TakeItem item, int index, bool on) : INotifyProperty
     public IBrush Ink => Item.Kind is { } k ? PendingRow.Colours(k).Ink : Tones.NoteText;
     public IBrush Fill => Item.Kind is { } k ? PendingRow.Colours(k).Fill : Tones.NoteFill;
     public IBrush Edge => On && Item.Kind is { } k ? PendingRow.Colours(k).Ink : Avalonia.Media.Brushes.Transparent;
+    /// The tick box's name: what ticking it takes.
+    public string Spoken => Speech.Join(Label, KindText, Now.Length > 0 ? $"now {Now}" : "", Theirs.Length > 0 ? $"theirs {Theirs}" : "");
 
     public bool On
     {

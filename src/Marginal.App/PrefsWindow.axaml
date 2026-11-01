@@ -4,48 +4,162 @@
         x:Class="Marginal.App.PrefsWindow"
         x:DataType="app:PrefsWindow"
         Title="Marginal — Preferences"
-        Width="560" MinWidth="440" SizeToContent="Height"
+        Width="780" Height="600" MinWidth="640" MinHeight="460" CanResize="True"
         Icon="avares://Marginal/Assets/icon-256.png"
         Background="{DynamicResource Ground}"
         WindowStartupLocation="CenterOwner">
-    <!-- As tall as what it holds (SizeToContent), so the update button is
-         never below the bottom edge: at a fixed 560 it was, always, and more
-         so once the drawn title bar and shadow took their room (Dave,
-         2026-10-31). The ScrollViewer stays for a screen shorter than that.
-         Updates and About, as in Deadwax's Preferences: the policy and the
-         action together; the check at launch only ever lights the dot on the
-         gear, nothing is fetched until the button here. -->
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="24,20" Spacing="14">
-            <DockPanel>
-                <Image x:Name="AppIcon" DockPanel.Dock="Left" Width="64" Height="64" Margin="0,0,16,0"/>
-                <StackPanel VerticalAlignment="Center" Spacing="2">
-                    <TextBlock Text="Marginal" FontSize="24" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="VersionText" Classes="soft"/>
-                    <TextBlock Classes="dim" FontSize="12" Text="Notes in the margins of your music library"/>
-                </StackPanel>
-            </DockPanel>
-            <TextBlock Classes="soft" TextWrapping="Wrap" LineHeight="20"
-                       Text="Tags, cover art and lyrics for FLAC, MP3 and M4A. Every change waits in Pending until Write, the audio is never touched, and every write can be undone for a year. Lookups ask MusicBrainz, the Cover Art Archive and LRCLIB only when you press a button. Free software, GPLv3."/>
-            <WrapPanel>
-                <Button Classes="tool" Content="Marginal on GitHub" Margin="0,0,8,8" Click="OnRepo"/>
-                <Button Classes="tool" Content="AlbumWall" Margin="0,0,8,8" Click="OnAlbumWall"/>
-                <Button Classes="tool" Content="Deadwax" Margin="0,0,8,8" Click="OnDeadwax"/>
-            </WrapPanel>
+    <!-- AlbumWall's Preferences (and Deadwax's), in Marginal's clean-room
+         colours (Dave, 2026-11-01: "lets clone the entire prefs dialog into
+         Marginal"). A SIDEBAR of pages, so a page is cheap to add: the lookup
+         and lyrics services are fixed to MusicBrainz and LRCLIB today, and when
+         either needs a choice it gets a page here rather than a new window.
+         One size that never changes by itself; a size he drags it to is kept
+         (Settings.PrefsWidth/Height), and each page scrolls on its own.
+         Settings are written straight through, no OK button; Escape closes.
+         The pages are in the order of the Page enum (PrefsWindow.axaml.cs);
+         About stays last, set apart. -->
+    <Window.Styles>
+        <Style Selector="TextBlock.pagetitle">
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.about">
+            <Setter Property="Foreground" Value="{DynamicResource Dim}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="LineHeight" Value="20"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <!-- The sidebar's lines: the pick is the library list's (a pale blue
+             with the accent edge), as everywhere in Marginal. -->
+        <Style Selector="ListBox#Pages">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="ListBox#Pages ListBoxItem">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{DynamicResource Soft}"/>
+            <Setter Property="Padding" Value="12,7"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+            <Setter Property="MinHeight" Value="0"/>
+        </Style>
+        <Style Selector="ListBox#Pages ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+        </Style>
+        <Style Selector="ListBox#Pages ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Desk}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+        </Style>
+        <Style Selector="ListBox#Pages ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Selected}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+        </Style>
+        <Style Selector="ListBox#Pages ListBoxItem:selected">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="ListBox#Pages ListBoxItem.apart">
+            <Setter Property="Margin" Value="0,18,0,2"/>
+        </Style>
+    </Window.Styles>
 
-            <Border Height="1" Background="{DynamicResource Rule}"/>
-            <TextBlock Classes="label" Text="UPDATES"/>
-            <CheckBox x:Name="AutoCheckBox" FontSize="13" Content="Look for a newer release when Marginal opens" Click="OnAutoCheck"/>
-            <TextBlock Classes="dim" FontSize="12" LineHeight="18" TextWrapping="Wrap" Margin="28,-8,0,0"
-                       Text="One small question to GitHub. If there is one, the gear gets a dot; nothing is downloaded until you ask for it here, and the download is checked against the release's published checksum before it is installed."/>
-            <CheckBox x:Name="EdgeBox" FontSize="13" Content="Edge builds: every release as it comes out" Click="OnEdge"/>
-            <TextBlock Classes="dim" FontSize="12" LineHeight="18" TextWrapping="Wrap" Margin="28,-8,0,0"
-                       Text="Off is Stable: only builds that have already run on Edge without trouble. Switching back to Stable keeps the build you have until Stable passes it."/>
-            <TextBlock x:Name="UpdateText" Classes="soft" TextWrapping="Wrap" LineHeight="20"/>
-            <Border x:Name="UpdateBar" Height="4" CornerRadius="2" IsVisible="False" Background="{DynamicResource Rule}">
-                <Border x:Name="UpdateFill" HorizontalAlignment="Left" Width="0" CornerRadius="2" Background="{DynamicResource Accent}"/>
-            </Border>
-            <Button x:Name="UpdateButton" Classes="primary" HorizontalAlignment="Left" Click="OnUpdate"/>
-        </StackPanel>
-    </ScrollViewer>
+    <DockPanel Margin="12">
+        <!-- The pages, as a list: the arrow keys move through it and the page
+             follows, Tab goes into the page. -->
+        <ListBox x:Name="Pages" DockPanel.Dock="Left" Width="168" Margin="0,0,12,0"
+                 SelectionMode="Single,AlwaysSelected"
+                 AutomationProperties.Name="Preferences pages">
+            <ListBoxItem Content="Accessibility"/>
+            <ListBoxItem Content="Updates"/>
+            <ListBoxItem Content="Keys"/>
+            <ListBoxItem Content="About" Classes="apart"/>
+        </ListBox>
+
+        <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Rule}"
+                BorderThickness="1" CornerRadius="8" Padding="22,20,8,20">
+            <Panel>
+                <!-- ACCESSIBILITY: text size, and what is always on. No motion
+                     choice: nothing in Marginal moves. -->
+                <ScrollViewer x:Name="PageAccessibility" IsVisible="False"
+                              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="14" Margin="0,0,14,0">
+                        <TextBlock Classes="pagetitle" Text="Accessibility" AutomationProperties.HeadingLevel="1"/>
+                        <TextBlock Classes="section" Text="Text size" AutomationProperties.HeadingLevel="2"/>
+                        <TextBlock Classes="about"
+                                   Text="Makes every window larger: the text, and the buttons, tables and spacing with it. The windows grow to hold it, as far as the screen allows."/>
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <ComboBox x:Name="TextSizeChoice" Width="120" AutomationProperties.Name="Text size"/>
+                            <TextBlock Classes="about" VerticalAlignment="Center" Text="Applies at once."/>
+                        </StackPanel>
+                        <TextBlock Classes="section" Text="Always on" Margin="0,6,0,0" AutomationProperties.HeadingLevel="2"/>
+                        <TextBlock Classes="about"
+                                   Text="Everything can be reached from the keyboard; Keys lists the shortcuts. Every control, list and row has a name for a screen reader, and what a Write, an Undo or a search did is read out when it happens. Colour never carries a meaning alone: each status has its word or sign beside it (+ add, ~ change, − remove)."/>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- UPDATES (Deadwax's page): the policy and the action together. The
+                     check at launch only ever lights the dot on the gear; nothing is
+                     fetched until the button here. -->
+                <ScrollViewer x:Name="PageUpdates" IsVisible="False"
+                              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="14" Margin="0,0,14,0">
+                        <TextBlock Classes="pagetitle" Text="Updates" AutomationProperties.HeadingLevel="1"/>
+                        <StackPanel Spacing="4">
+                            <CheckBox x:Name="AutoCheckBox" FontSize="13" Content="Look for a newer release when Marginal opens" Click="OnAutoCheck"/>
+                            <TextBlock Classes="about" Margin="28,0,0,0"
+                                       Text="One small question to GitHub. If there is one, the gear gets a dot; nothing is downloaded until you ask for it here, and the download is checked against the release's published checksum before it is installed."/>
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <CheckBox x:Name="EdgeBox" FontSize="13" Content="Edge builds: every release as it comes out" Click="OnEdge"/>
+                            <TextBlock Classes="about" Margin="28,0,0,0"
+                                       Text="Off is Stable: only builds that have already run on Edge without trouble. Switching back to Stable keeps the build you have until Stable passes it."/>
+                        </StackPanel>
+                        <Border Height="1" Margin="0,4,0,0" Background="{DynamicResource Rule}"/>
+                        <TextBlock x:Name="UpdateText" Classes="soft" TextWrapping="Wrap" LineHeight="20"
+                                   AutomationProperties.LiveSetting="Polite"/>
+                        <Border x:Name="UpdateBar" Height="4" CornerRadius="2" IsVisible="False" Background="{DynamicResource Rule}">
+                            <Border x:Name="UpdateFill" HorizontalAlignment="Left" Width="0" CornerRadius="2" Background="{DynamicResource Accent}"/>
+                        </Border>
+                        <Button x:Name="UpdateButton" Classes="primary" HorizontalAlignment="Left" Click="OnUpdate"/>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- KEYS: what cannot be found by looking. Built in code
+                     (PrefsWindow.Keys.cs) beside the list it must agree with. -->
+                <ScrollViewer x:Name="PageKeys" IsVisible="False"
+                              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="12" Margin="0,0,14,0">
+                        <TextBlock Classes="pagetitle" Text="Keys" AutomationProperties.HeadingLevel="1"/>
+                        <StackPanel x:Name="KeysBody" Spacing="3"/>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <ScrollViewer x:Name="PageAbout" IsVisible="False"
+                              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="14" Margin="0,0,14,0">
+                        <DockPanel>
+                            <Image x:Name="AppIcon" AutomationProperties.AccessibilityView="Raw" DockPanel.Dock="Left" Width="64" Height="64" Margin="0,0,16,0"/>
+                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="Marginal" FontSize="24" FontWeight="SemiBold" AutomationProperties.HeadingLevel="1"/>
+                                <TextBlock x:Name="VersionText" Classes="soft"/>
+                                <TextBlock Classes="dim" FontSize="12" Text="Notes in the margins of your music library"/>
+                            </StackPanel>
+                        </DockPanel>
+                        <TextBlock Classes="soft" TextWrapping="Wrap" LineHeight="20"
+                                   Text="Tags, cover art and lyrics for FLAC, MP3 and M4A. Every change waits in Pending until Write, the audio is never touched, and every write can be undone for a year. Lookups ask MusicBrainz, the Cover Art Archive and LRCLIB only when you press a button. Free software, GPLv3."/>
+                        <WrapPanel>
+                            <Button Classes="tool" Content="Marginal on GitHub" Margin="0,0,8,8" Click="OnRepo"/>
+                            <Button Classes="tool" Content="AlbumWall" Margin="0,0,8,8" Click="OnAlbumWall"/>
+                            <Button Classes="tool" Content="Deadwax" Margin="0,0,8,8" Click="OnDeadwax"/>
+                        </WrapPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Panel>
+        </Border>
+    </DockPanel>
 </Window>

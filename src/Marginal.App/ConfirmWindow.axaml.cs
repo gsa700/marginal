@@ -15,6 +15,7 @@ public partial class ConfirmWindow : Window
     public ConfirmWindow()
     {
         InitializeComponent();
+        TextSize.Follow(this);   // before the frame: the frame stays its own size
         DrawnFrame.Wrap(this);   // off the Mac: drawn title bar, Close only (Marginal, 2026-10-31)
     }
 
@@ -62,6 +63,10 @@ public partial class ConfirmWindow : Window
             OptionBox.Content = option;
             OptionBox.IsVisible = true;
         }
+
+        // Escape answers no, or closes a message with nothing to decline (Accessibility).
+        if (negative is null) AffirmativeButton.IsCancel = true;
+        else NegativeButton.IsCancel = true;
 
         AffirmativeButton.Click += (_, _) => Close(true);
         NegativeButton.Click += (_, _) => Close(false);

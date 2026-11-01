@@ -71,6 +71,11 @@ What comes next, in order. The spec is `docs/spec.md`.
 - Identify by sound (AcoustID + Chromaprint).
 - Rename files and folders to match tags (opt-in, previewed in Pending).
 - Dark mode.
+- A choice of lookup and lyrics services. MusicBrainz (with the Cover Art
+  Archive) and LRCLIB are fixed today, and either could go away or change
+  its terms; with no other one to turn to, the app takes a big hit (Dave,
+  2026-11-01). Each gets a page in Preferences when the time comes, which
+  is why Preferences became a sidebar of pages.
 
 ## Decided
 

@@ -53,6 +53,7 @@ public sealed partial class ArtWindow : Window
     {
         _album = album;
         InitializeComponent();
+        TextSize.Follow(this);   // before the frame: the frame stays its own size
         DrawnFrame.Attach(this, Surface, TopBar, LeftButtons, RightButtons, owned: true);
         AlbumLine.Text = $"{album.Artist} — {album.Title}";
         FrontSlot.Content = $"Front  {(album.Cover is { } c ? $"have {c.Size}" : album.Tracks.Any(t => t.EmbeddedCover() is not null) ? "embedded only" : "missing")}";
@@ -474,8 +475,10 @@ public sealed class ArtRow(ArtCandidate candidate, byte[]? local = null, string?
     public string Placeholder
     {
         get;
-        set { field = value; PropertyChanged?.Invoke(this, new(nameof(Placeholder))); }
+        set { field = value; PropertyChanged?.Invoke(this, new(nameof(Placeholder))); PropertyChanged?.Invoke(this, new(nameof(Spoken))); }
     } = "loading…";
+
+    public string Spoken => Speech.Join(Edition, What, Source, Placeholder);
 
     public event PropertyChangedEventHandler? PropertyChanged;
 }

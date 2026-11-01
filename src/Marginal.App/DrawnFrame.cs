@@ -90,11 +90,23 @@ internal sealed class DrawnFrame
     {
         _window.ExtendClientAreaToDecorationsHint = true;
         bar.Height = MacBarHeight;
-        // Avalonia's own layout reads this as the title bar's height; the
-        // lights are centred by CenterTrafficLights, which the hint does not do.
-        _window.ExtendClientAreaTitleBarHeightHint = MacBarHeight;
-        left.Width = MacTrafficLightsWidth;   // their place kept clear
-        left.Margin = new Thickness(-8, 0, 6, 0);
+        // The bar is inside the window's text-size scale (TextSize.Follow), so
+        // at 130% it is 130% as tall: the title-bar height and the lights'
+        // centre follow it, and the lights' own room, which does not scale, is
+        // kept in the bar's smaller units (Accessibility, 2026-11-01).
+        void Fit()
+        {
+            var f = TextSize.Factor;
+            // Avalonia's own layout reads this as the title bar's height; the
+            // lights are centred by CenterTrafficLights, which the hint does not do.
+            _window.ExtendClientAreaTitleBarHeightHint = MacBarHeight * f;
+            left.Width = MacTrafficLightsWidth / f;   // their place kept clear
+            left.Margin = new Thickness(-8 / f, 0, 6, 0);
+        }
+        Fit();
+        TextSize.Changed += Fit;
+        TextSize.Changed += RecenterTrafficLights;
+        _window.Closed += (_, _) => { TextSize.Changed -= Fit; TextSize.Changed -= RecenterTrafficLights; };
         _window.Opened += (_, _) =>
         {
             var h = _window.TryGetPlatformHandle();
@@ -112,7 +124,7 @@ internal sealed class DrawnFrame
     private void CenterTrafficLights()
     {
         var h = _window.TryGetPlatformHandle();
-        MacWindow.CenterTrafficLights(h?.Handle ?? IntPtr.Zero, h?.HandleDescriptor, MacBarHeight);
+        MacWindow.CenterTrafficLights(h?.Handle ?? IntPtr.Zero, h?.HandleDescriptor, MacBarHeight * TextSize.Factor);
     }
 
     /// At once and again once AppKit is done: during a live resize it lays the

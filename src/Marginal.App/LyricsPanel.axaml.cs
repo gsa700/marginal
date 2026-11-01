@@ -196,7 +196,7 @@ public sealed partial class LyricsPanel : UserControl
         _playing = null;
         _clock.Stop();
         SetTap(false);
-        PlayGlyph.Text = "▶";
+        Glyph(false);
         PositionText.Text = "0:00.0";
         NowLine.Text = Player.IsAvailable ? "" : NowLine.Text;
         _movingSlider = true;
@@ -204,12 +204,21 @@ public sealed partial class LyricsPanel : UserControl
         _movingSlider = false;
     }
 
+    /// The button's sign, and its name for a screen reader with it.
+    private void Glyph(bool playing)
+    {
+        var glyph = playing ? "⏸" : "▶";
+        if (PlayGlyph.Text == glyph) return;
+        PlayGlyph.Text = glyph;
+        Avalonia.Automation.AutomationProperties.SetName(PlayButton, playing ? "Pause" : "Play");
+    }
+
     private void Tick()
     {
         if (_player is null || _playing is null) return;
         var position = _player.Position;
         var duration = _player.Duration;
-        PlayGlyph.Text = _player.IsPlaying ? "⏸" : "▶";
+        Glyph(_player.IsPlaying);
         PositionText.Text = Clock(position);
         DurationText.Text = Clock(duration);
         _movingSlider = true;
@@ -595,7 +604,7 @@ public sealed class LyricsRow(TrackFile track) : INotifyPropertyChanged
         set
         {
             field = value;
-            foreach (var p in new[] { nameof(Found), nameof(HasFound), nameof(FoundText), nameof(FoundInk), nameof(FoundFill) })
+            foreach (var p in new[] { nameof(Found), nameof(HasFound), nameof(FoundText), nameof(FoundInk), nameof(FoundFill), nameof(Spoken) })
                 PropertyChanged?.Invoke(this, new(p));
         }
     }
@@ -604,6 +613,8 @@ public sealed class LyricsRow(TrackFile track) : INotifyPropertyChanged
     public string FoundText => Found?.Text ?? "";
     public IBrush FoundInk => Tones.Of(Found?.Tone ?? Tone.Note).Text;
     public IBrush FoundFill => Tones.Of(Found?.Tone ?? Tone.Note).Fill;
+    public string Spoken => Speech.Join(Number.Length > 0 ? $"track {Number.TrimStart('0')}" : "", Title,
+        $"lyrics {Now}", HasFound ? $"found {FoundText}" : "");
 
     public event PropertyChangedEventHandler? PropertyChanged;
 }
@@ -617,4 +628,6 @@ public sealed record ResultRow(LyricsFit Fit)
     public IBrush TagFill => Fit.Automatic ? Tones.OkFill : Tones.WarnFill;
     public IBrush Fill => Fit.Automatic ? Tones.OkFill : Tones.Bar;
     public IBrush Edge => Fit.Automatic ? Tones.OkText : Tones.NoteFill;
+    public string UseName => $"Use this: {Title}, {Tag}";
+    public string PreviewName => $"Preview: {Title}, {Tag}";
 }

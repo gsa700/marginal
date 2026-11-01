@@ -5,12 +5,17 @@ using Avalonia.Platform;
 
 namespace Marginal.App;
 
-/// Updates and About. The update logic is Deadwax's Updates page (one button,
-/// two jobs: check, then "Update to X and restart"), on Marginal's main window.
+/// Preferences: a sidebar of pages (AlbumWall's, 2026-11-01). The update
+/// logic is Deadwax's Updates page (one button, two jobs: check, then "Update
+/// to X and restart"), on Marginal's main window.
 public sealed partial class PrefsWindow : Window
 {
+    /// The sidebar's lines, in order (PrefsWindow.axaml).
+    public enum Page { Accessibility, Updates, Keys, About }
+
     private readonly MainWindow _main;
     private readonly Settings _settings;
+    private readonly Control[] _pages;
     private bool _updating;
     private string? _updateNote;
 
@@ -22,20 +27,42 @@ public sealed partial class PrefsWindow : Window
         _main = main;
         _settings = settings;
         InitializeComponent();
+        TextSize.Follow(this);   // before the frame: the frame stays its own size
+        if (settings.PrefsWidth is { } w) Width = Math.Max(w * TextSize.Factor, MinWidth);
+        if (settings.PrefsHeight is { } h) Height = Math.Max(h * TextSize.Factor, MinHeight);
         DrawnFrame.Wrap(this);
+        _pages = [PageAccessibility, PageUpdates, PageKeys, PageAbout];
+        Pages.SelectionChanged += (_, _) => ShowPage();
+        Pages.SelectedIndex = 0;
+        ShowPage();
+
         VersionText.Text = $"Version {UpdateService.CurrentVersion}";
         try { AppIcon.Source = new Bitmap(AssetLoader.Open(new Uri("avares://Marginal/Assets/icon-256.png"))); } catch (Exception) { }
         AutoCheckBox.IsChecked = settings.CheckForUpdates;
         EdgeBox.IsChecked = settings.EdgeChannel;
         FillUpdate();
+        WireAccessibility();
+        FillKeys();
+        // Escape closes it, as any panel of settings (Accessibility, 2026-11-01).
+        KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Escape) { Close(); e.Handled = true; } };
         // Where it was last time, kept on a screen (WindowPlacement); a first
         // run opens over the main window.
         Opened += (_, _) => WindowPlacement.Restore(this, _settings.PrefsX, _settings.PrefsY);
         Closing += (_, _) =>
         {
             if (WindowPlacement.Current(this) is { } p) (_settings.PrefsX, _settings.PrefsY) = (p.X, p.Y);
+            if (WindowState == WindowState.Normal)
+                (_settings.PrefsWidth, _settings.PrefsHeight) = (Math.Round(Bounds.Width / TextSize.Factor), Math.Round(Bounds.Height / TextSize.Factor));
             _settings.Save();
         };
+    }
+
+    /// Opens on a page: the gear on the first, F1 on Keys.
+    public void Select(Page page) => Pages.SelectedIndex = (int)page;
+
+    private void ShowPage()
+    {
+        for (var i = 0; i < _pages.Length; i++) _pages[i].IsVisible = i == Pages.SelectedIndex;
     }
 
     /// Where things stand, from whatever is known: the launch-time check may

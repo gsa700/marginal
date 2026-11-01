@@ -61,4 +61,4 @@ other: `src/Marginal.Codecs` and `src/Marginal.Playback` (AlbumWall's Hymie),
 from a source and then changed: `MusicBrainzClient.cs` (Deadwax's), the install
 and update code in `src/Marginal.App/Install`, `InstallFlow.cs`,
 `UpdateService.cs`, `MacUpdate.cs`, `MacInstaller.cs`, `WindowsShell.cs`, `WindowPlacement.cs`,
-`PowerShell.cs`, `WaylandShell.cs` and `tools/` (Deadwax's); `WindowButtons.cs` and `DrawnCaptions.cs` (AlbumWall's); `DrawnFrame.cs` (Deadwax's frame: corners, window buttons, resize band, title-bar drag and double click; Marginal adds the shadow and outline layers).
+`PowerShell.cs`, `WaylandShell.cs` and `tools/` (Deadwax's); `WindowButtons.cs`, `DrawnCaptions.cs`, `TextSize.cs` and the Preferences sidebar (`PrefsWindow*`) (AlbumWall's); `DrawnFrame.cs` (Deadwax's frame: corners, window buttons, resize band, title-bar drag and double click; Marginal adds the shadow and outline layers).

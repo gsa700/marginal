@@ -53,7 +53,7 @@ public sealed class AlbumRow(Album Album) : System.ComponentModel.INotifyPropert
     public bool ShowFolder
     {
         get;
-        set { if (field == value) return; field = value; PropertyChanged?.Invoke(this, new(nameof(ShowFolder))); }
+        set { if (field == value) return; field = value; PropertyChanged?.Invoke(this, new(nameof(ShowFolder))); PropertyChanged?.Invoke(this, new(nameof(Spoken))); }
     }
 
     /// How many changes wait in this album's Pending, shown in the list.
@@ -67,6 +67,7 @@ public sealed class AlbumRow(Album Album) : System.ComponentModel.INotifyPropert
             PropertyChanged?.Invoke(this, new(nameof(PendingCount)));
             PropertyChanged?.Invoke(this, new(nameof(PendingText)));
             PropertyChanged?.Invoke(this, new(nameof(HasPending)));
+            PropertyChanged?.Invoke(this, new(nameof(Spoken)));
         }
     }
 
@@ -81,12 +82,26 @@ public sealed class AlbumRow(Album Album) : System.ComponentModel.INotifyPropert
     public string Summary => Album.Summary;
     public IBrush SummaryText => Tones.Of(Album.Status).Text;
     public IBrush SummaryFill => Tones.Of(Album.Status).Fill;
+
+    /// The row as a screen reader says it (Accessibility, 2026-11-01): the
+    /// list item is what has focus, and it has no text of its own.
+    public string Spoken => Speech.Join(Title, Album.Artist.Length > 0 ? $"by {Album.Artist}" : "", Album.Year,
+        Formats, Summary, ShowFolder ? $"folder {FolderName}" : "", HasPending ? $"{PendingCount} pending" : "");
+}
+
+/// Screen-reader text (Accessibility, 2026-11-01): the parts that are there,
+/// joined with commas, so a reader pauses between them.
+public static class Speech
+{
+    public static string Join(params string?[] parts) =>
+        string.Join(", ", parts.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!.Trim()));
 }
 
 public sealed record FieldRow(string Label, string Value, string Note, IBrush NoteText, IBrush NoteFill, string Key, IBrush ValueText)
 {
     public Field? Field { get; init; }
     public bool HasNote => Note.Length > 0;
+    public string Spoken => Speech.Join(Label, Value == "—" ? "empty" : Value, Note);
 
     /// The row as it will be after Write: the pending value in its kind's
     /// colour, with the kind and count as the note.
@@ -163,6 +178,9 @@ public sealed record TrackRow(TrackFile Track, IReadOnlyList<Check> Checks)
     public string Check => Worst?.Text ?? "clean";
     public IBrush CheckText => Tones.Of(Worst?.Tone ?? Tone.Clean).Text;
     public IBrush CheckFill => Tones.Of(Worst?.Tone ?? Tone.Clean).Fill;
+
+    public string Spoken => Speech.Join(Number.Length > 0 ? $"track {Number.TrimStart('0')}" : "", Title, Time,
+        $"art {Art}", $"lyrics {Lyrics}", Checks.Count == 0 ? "clean" : string.Join(", ", Checks.Select(c => c.Text)));
 }
 
 public sealed record RawRow(string Key, string Value, IBrush ValueText, TextDecorationCollection? Decorations)
@@ -186,6 +204,12 @@ public sealed record PendingRow(Change Change)
     public string To => Change.To ?? "removed";
     public IBrush Ink => Colours(Change.Kind).Ink;
     public IBrush Fill => Colours(Change.Kind).Fill;
+    public string Spoken => Change.Kind switch
+    {
+        ChangeKind.Add => Speech.Join($"add {Key}", To, $"in {File}"),
+        ChangeKind.Remove => Speech.Join($"remove {Key}", $"was {From}", $"in {File}"),
+        _ => Speech.Join($"change {Key}", $"from {From}", $"to {To}", $"in {File}"),
+    };
 
     /// + add green, ~ change orange, − remove red (spec §2, rule 2).
     public static (IBrush Ink, IBrush Fill) Colours(ChangeKind kind) => kind switch

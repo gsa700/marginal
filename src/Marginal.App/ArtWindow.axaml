@@ -96,7 +96,7 @@
                 BorderThickness="0,1,0,0" Padding="18,12">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
-                    <Button Classes="tool" Content="Cancel" Click="OnCancel"/>
+                    <Button Classes="tool" Content="Cancel" Click="OnCancel" IsCancel="True"/>
                     <Button x:Name="AddButton" Classes="primary" Content="Add to Pending" IsEnabled="False" Click="OnAdd"/>
                 </StackPanel>
                 <!-- Shown when the files carry no release and a search found this
@@ -122,12 +122,17 @@
 <Border x:Name="BusyBar" DockPanel.Dock="Top" IsVisible="False" Background="{DynamicResource Selected}"
                         BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,0,12,12">
                     <StackPanel Spacing="8">
-                        <TextBlock x:Name="BusyText" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource Accent}" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="BusyText" AutomationProperties.LiveSetting="Polite" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource Accent}" TextWrapping="Wrap"/>
                         <ProgressBar IsIndeterminate="True" Height="4" MinHeight="4" Foreground="{DynamicResource Accent}" Background="#DCE8F7"/>
                     </StackPanel>
                 </Border>
-                <TextBlock x:Name="NoneText" DockPanel.Dock="Top" Classes="dim" TextWrapping="Wrap" LineHeight="19" IsVisible="False" Margin="0,0,12,10"/>
-                <ListBox x:Name="CandidateList" SelectionChanged="OnCandidateSelected">
+                <TextBlock x:Name="NoneText" AutomationProperties.LiveSetting="Polite" DockPanel.Dock="Top" Classes="dim" TextWrapping="Wrap" LineHeight="19" IsVisible="False" Margin="0,0,12,10"/>
+                <ListBox x:Name="CandidateList" SelectionChanged="OnCandidateSelected" AutomationProperties.Name="Images to choose from">
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem" x:DataType="app:ArtRow">
+                            <Setter Property="AutomationProperties.Name" Value="{Binding Spoken}"/>
+                        </Style>
+                    </ListBox.Styles>
                     <ListBox.ItemsPanel>
                         <ItemsPanelTemplate>
                             <WrapPanel Orientation="Horizontal"/>
@@ -155,7 +160,7 @@
                 </ListBox>
             </DockPanel>
 
-            <GridSplitter Grid.Column="1" Width="5" Background="Transparent" ResizeDirection="Columns"/>
+            <GridSplitter Grid.Column="1" Width="5" Background="Transparent" ResizeDirection="Columns" AutomationProperties.Name="Panel width: arrow keys"/>
 
             <!-- The picked image and what to make of it. -->
             <Border Grid.Column="2" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Rule}" BorderThickness="1,0,0,0">
@@ -169,7 +174,7 @@
                                     CornerRadius="4" ClipToBounds="True" MinHeight="120">
                                 <Panel>
                                     <TextBlock x:Name="PreviewWait" Classes="mono dim" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    <Image x:Name="Preview" Stretch="Uniform"/>
+                                    <Image x:Name="Preview" Stretch="Uniform" AutomationProperties.Name="The chosen image"/>
                                 </Panel>
                             </Border>
                             <DockPanel>
@@ -190,7 +195,7 @@
                             <Grid ColumnDefinitions="*,10,*">
                                 <StackPanel Spacing="3">
                                     <TextBlock Text="Longest side" FontSize="11" Classes="soft"/>
-                                    <ComboBox x:Name="SizeBox" HorizontalAlignment="Stretch" FontSize="12" SelectedIndex="0" SelectionChanged="OnOption">
+                                    <ComboBox x:Name="SizeBox" AutomationProperties.Name="Longest side" HorizontalAlignment="Stretch" FontSize="12" SelectedIndex="0" SelectionChanged="OnOption">
                                         <ComboBoxItem Content="as it is"/>
                                         <ComboBoxItem Content="1500"/>
                                         <ComboBoxItem Content="1200"/>
@@ -199,7 +204,7 @@
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Spacing="3">
                                     <TextBlock Text="JPEG quality" FontSize="11" Classes="soft"/>
-                                    <ComboBox x:Name="QualityBox" HorizontalAlignment="Stretch" FontSize="12" SelectedIndex="0" SelectionChanged="OnOption">
+                                    <ComboBox x:Name="QualityBox" AutomationProperties.Name="JPEG quality" HorizontalAlignment="Stretch" FontSize="12" SelectedIndex="0" SelectionChanged="OnOption">
                                         <ComboBoxItem Content="keep original"/>
                                         <ComboBoxItem Content="92"/>
                                         <ComboBoxItem Content="85"/>
