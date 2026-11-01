@@ -74,6 +74,9 @@ while [ $# -gt 0 ]; do
         --edge) EDGE=1 ;;
         --dry-run) DRY=1 ;;
         --no-mac) MAC=0 ;;
+        # Every build is Native AOT here, always; accepted so a command written
+        # for AlbumWall's script (where it was once needed) does no harm (2026-11-01).
+        --aot) ;;
         --notes-file) NOTES=${2:?--notes-file needs a file}; shift ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
