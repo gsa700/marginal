@@ -142,6 +142,15 @@ public static class Pending
         }).ToList();
     }
 
+    /// True when `pending` already gives the track lyrics: a lyrics tag being
+    /// set (not removed) or a .lrc being written beside it. Find lyrics for
+    /// the album passes such tracks over: asking LRCLIB again for the whole
+    /// album until it was written turned found tracks into "none found" when
+    /// it stopped answering part way (Dave, 2026-11-02).
+    public static bool HasLyrics(IEnumerable<Change> pending, TrackFile track) =>
+        pending.Any(c => (c.Path == track.Path && c.Field == FieldMap.Lyrics && c.To is not null)
+                         || (c.Path == track.LrcPath && c.Op == ChangeOp.WriteText));
+
     /// Lyrics for one track, where asked (spec §3.2): the file's lyrics tag
     /// (with the time codes only if `timesInTag`: some players show them as
     /// text) and, for synced lyrics, a .lrc beside the track. Empty `text`

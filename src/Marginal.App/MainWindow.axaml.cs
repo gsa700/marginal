@@ -54,6 +54,7 @@ public sealed partial class MainWindow : Window
         Lyrics.Remember(_settings, this);
         Closing += (_, _) => SavePlacement();
         Lyrics.Changes += changes => AddPending(changes);
+        Lyrics.PendingNow = () => PendingHere;
         Lyrics.WriteAsked += () => OnWrite(this, new RoutedEventArgs());
         Closed += (_, _) => Lyrics.Shutdown();
         Opened += async (_, _) =>
@@ -262,7 +263,8 @@ public sealed partial class MainWindow : Window
         CleanButton.IsEnabled = _albums.Count > 0;
 
         var selected = AlbumList.SelectedItem;
-        var list = rows.ToList();
+        var list = rows.OrderBy(r => r.Album.SortKey, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(r => r.Album.Folder, StringComparer.Ordinal).ToList();
         AlbumList.ItemsSource = list;
         if (selected is AlbumRow s && list.Contains(s)) AlbumList.SelectedItem = s;
 

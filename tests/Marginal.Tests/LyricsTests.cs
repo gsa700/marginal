@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Marginal.App;
 using Marginal.Core;
 
 namespace Marginal.Tests;
@@ -211,5 +212,32 @@ public sealed class LyricsTests : IDisposable
         Assert.Equal(ChangeKind.Remove, remove.Kind);
         Assert.Empty(TagWriter.Write([remove], _backups).Problems);
         Assert.Equal(LyricsKind.None, Track("01").Lyrics);
+    }
+
+    // ---- Find lyrics for the album: what is already pending ---------------------------
+
+    [Fact]
+    public void Lyrics_waiting_in_Pending_count_as_found()
+    {
+        var album = Read();
+        var first = album.Tracks.First(t => t.Problem is null);
+        var other = album.Tracks.First(t => t.Problem is null && t.Path != first.Path);
+        Assert.False(Pending.HasLyrics([], first));
+
+        // In the tag only, in a .lrc only, or both: each is lyrics on the way.
+        Assert.True(Pending.HasLyrics(Pending.SetLyrics(first, Synced, tag: true, lrc: false, timesInTag: false), first));
+        Assert.True(Pending.HasLyrics(Pending.SetLyrics(first, Synced, tag: false, lrc: true, timesInTag: false), first));
+        var both = Pending.SetLyrics(first, Synced, tag: true, lrc: true, timesInTag: false);
+        Assert.True(Pending.HasLyrics(both, first));
+        Assert.False(Pending.HasLyrics(both, other));
+    }
+
+    [Fact]
+    public void The_album_note_says_how_many_were_already_pending()
+    {
+        Assert.Equal("Every track has synced lyrics or lyrics waiting in Pending.",
+            LyricsPanel.FindAllNote(0, 0, 0, 0, false, null, alreadyPending: 12));
+        Assert.Equal("1 of 1 tracks found and added to Pending (12 already in Pending, not asked again); the rest are marked to look at.",
+            LyricsPanel.FindAllNote(1, 1, 1, 0, false, null, alreadyPending: 12));
     }
 }

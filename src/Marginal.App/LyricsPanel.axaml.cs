@@ -55,6 +55,9 @@ public sealed partial class LyricsPanel : UserControl
     /// Changes to add to the album's Pending.
     public event Action<IReadOnlyList<Change>>? Changes;
 
+    /// The album's Pending as it is now (the main window keeps it).
+    public Func<IReadOnlyList<Change>>? PendingNow { get; set; }
+
     /// Write was pressed on this tab.
     public event Action? WriteAsked;
 
@@ -489,7 +492,12 @@ public sealed partial class LyricsPanel : UserControl
         var failed = 0;
         var inARow = 0;
         string? lastError = null;
-        var tracks = _album.Tracks.Where(t => t.Lyrics != LyricsKind.Synced && t.Problem is null).ToList();
+        // Not the tracks whose lyrics are already waiting in Pending: only
+        // the ones still missing are asked again (Dave, 2026-11-02).
+        var pending = PendingNow?.Invoke() ?? [];
+        var wanted = _album.Tracks.Where(t => t.Lyrics != LyricsKind.Synced && t.Problem is null).ToList();
+        var tracks = wanted.Where(t => !Pending.HasLyrics(pending, t)).ToList();
+        var alreadyPending = wanted.Count - tracks.Count;
         try
         {
             foreach (var track in tracks)
@@ -512,7 +520,7 @@ public sealed partial class LyricsPanel : UserControl
                 }
             }
             Busy(null);
-            FoundNote.Text = FindAllNote(tracks.Count, asked, queued, failed, inARow >= MaxFailuresInARow, lastError);
+            FoundNote.Text = FindAllNote(tracks.Count, asked, queued, failed, inARow >= MaxFailuresInARow, lastError, alreadyPending);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -526,10 +534,13 @@ public sealed partial class LyricsPanel : UserControl
     private const int MaxFailuresInARow = 3;
 
     /// What Find lyrics for the album says when it is done.
-    public static string FindAllNote(int tracks, int asked, int queued, int failed, bool stopped, string? error)
+    public static string FindAllNote(int tracks, int asked, int queued, int failed, bool stopped, string? error, int alreadyPending = 0)
     {
-        if (tracks == 0) return "Every track already has synced lyrics.";
+        if (tracks == 0)
+            return alreadyPending == 0 ? "Every track already has synced lyrics."
+                : "Every track has synced lyrics or lyrics waiting in Pending.";
         var found = $"{queued} of {tracks} tracks found and added to Pending";
+        if (alreadyPending > 0) found += $" ({alreadyPending} already in Pending, not asked again)";
         if (failed == 0) return $"{found}; the rest are marked to look at.";
         var notAsked = tracks - asked;
         var why = error is null ? "" : $" ({error})";

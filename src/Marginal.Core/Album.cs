@@ -50,6 +50,21 @@ public sealed class Album
     public string Year => Field(FieldMap.Date) is { Length: >= 4 } d ? d[..4] : "";
     public TimeSpan Length => Tracks.Aggregate(TimeSpan.Zero, (t, f) => t + f.Duration);
 
+    /// Where the album files in the library list: AlbumWall's order (its
+    /// Model.SortKey), so The Alan Parsons Project files under A in both, not
+    /// under T as the folder name would put it (Dave, 2026-11-02).
+    public string SortKey
+    {
+        get
+        {
+            var a = Artist;
+            foreach (var article in (string[])["The ", "A ", "An "])
+                if (a.StartsWith(article, StringComparison.OrdinalIgnoreCase))
+                { a = a[article.Length..]; break; }
+            return $"{a} {(Year.Length == 4 ? Year : "0000")} {Title}";
+        }
+    }
+
     /// "FLAC", or "MP3 + M4A" for a mixed folder.
     public string Formats => string.Join(" + ", Tracks.Select(t => t.Format.ToString().ToUpperInvariant()).Distinct());
 

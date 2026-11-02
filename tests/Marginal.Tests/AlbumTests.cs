@@ -121,4 +121,39 @@ public class AlbumTests
     [InlineData("[ar:Someone]\n[01:02]A line", LyricsKind.Synced)]
     public void Lyrics_kind_from_text(string text, LyricsKind kind) =>
         Assert.Equal(kind, TrackReader.KindOf(text));
+
+    // ---- the library order ---------------------------------------------------------
+
+    private static Album Made(string artist, string year, string title) => new()
+    {
+        Folder = Path.Combine("library", $"{artist} - {title}"),
+        Tracks = [],
+        Checks = [],
+        Fields =
+        [
+            new FieldSummary(FieldMap.AlbumArtist, [(artist, 1)], 0),
+            new FieldSummary(FieldMap.Artist, [(artist, 1)], 0),
+            new FieldSummary(FieldMap.Date, year.Length > 0 ? [(year, 1)] : [], year.Length > 0 ? 0 : 1),
+            new FieldSummary(FieldMap.Album, [(title, 1)], 0),
+        ],
+    };
+
+    [Fact]
+    public void The_library_files_an_artist_without_a_leading_article()
+    {
+        var albums = new[]
+        {
+            Made("Tears for Fears", "1985", "Songs from the Big Chair"),
+            Made("The Alan Parsons Project", "1977", "I Robot"),
+            Made("Alice in Chains", "1992", "Dirt"),
+            Made("A Flock of Seagulls", "1982", "A Flock of Seagulls"),
+            Made("The Alan Parsons Project", "1976", "Tales of Mystery and Imagination"),
+        };
+        var order = albums.OrderBy(a => a.SortKey, StringComparer.OrdinalIgnoreCase).Select(a => a.Title).ToList();
+        Assert.Equal(["Tales of Mystery and Imagination", "I Robot", "Dirt", "A Flock of Seagulls", "Songs from the Big Chair"], order);
+    }
+
+    [Fact]
+    public void Only_a_whole_leading_article_is_dropped() =>
+        Assert.StartsWith("Theatre of Tragedy ", Made("Theatre of Tragedy", "1998", "Aégis").SortKey);
 }
