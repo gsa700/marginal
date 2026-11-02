@@ -112,7 +112,7 @@
                         <StackPanel Spacing="4">
                             <CheckBox x:Name="AutoCheckBox" FontSize="13" Content="Look for a newer release when Marginal opens" Click="OnAutoCheck"/>
                             <TextBlock Classes="about" Margin="28,0,0,0"
-                                       Text="One small question to GitHub. If there is one, the gear gets a dot; nothing is downloaded until you ask for it here, and the download is checked against the release's published checksum before it is installed."/>
+                                       Text="One small question to GitHub. If there is one, the gear gets a dot, and pressing it opens this page; nothing is downloaded until you ask for it here, and the download is checked against the release's published checksum before it is installed."/>
                         </StackPanel>
                         <StackPanel Spacing="4">
                             <CheckBox x:Name="EdgeBox" FontSize="13" Content="Edge builds: every release as it comes out" Click="OnEdge"/>

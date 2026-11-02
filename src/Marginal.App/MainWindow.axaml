@@ -159,7 +159,7 @@
                             AutomationProperties.Name="Undo the last write"/>
                     <!-- Preferences: Updates and About; a dot when an update waits. -->
                     <Button x:Name="GearButton" Classes="tool" Width="36" Padding="0" HorizontalContentAlignment="Center"
-                            ToolTip.Tip="Preferences: updates and about" Click="OnPrefs"
+                            ToolTip.Tip="Preferences: updates and about" Click="OnGear"
                             AutomationProperties.Name="Preferences">
                         <Panel>
                             <!-- AlbumWall's and Deadwax's gear, the same glyph and size

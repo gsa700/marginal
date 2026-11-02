@@ -471,6 +471,11 @@ public sealed partial class MainWindow : Window
 
     private void OnPrefs(object? sender, RoutedEventArgs e) => ShowPrefs(null);
 
+    /// The gear: Preferences, straight on the Updates page while the dot
+    /// says an update is waiting (Dave, 2026-11-01: all three apps).
+    private void OnGear(object? sender, RoutedEventArgs e) =>
+        ShowPrefs(UpdateDot.IsVisible ? PrefsWindow.Page.Updates : null);
+
     /// Preferences, brought forward if it is open; on a page when one is named
     /// (F1: Keys), else where it was.
     internal void ShowPrefs(PrefsWindow.Page? page)
