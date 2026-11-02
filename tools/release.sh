@@ -42,7 +42,8 @@
 # (clearing the pre-release flag) offers the same binary to everyone.
 #
 # REFUSES TO RUN unless: the tree is clean, HEAD is what origin/main has (a
-# release is built from pushed code), <Version> in the csproj equals the version
+# release is built from pushed code), spindle/ is at its pinned commit and that
+# commit is on GitHub, <Version> in the csproj equals the version
 # asked for (bump it in a commit of its own first), and neither the tag nor the
 # release exists yet. Same shape as AlbumWall's scripts/release.sh.
 set -euo pipefail
@@ -112,16 +113,30 @@ git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && must "tag $TAG already 
 git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1 && must "tag $TAG already exists on origin"
 gh release view "$TAG" -R "$REPO" >/dev/null 2>&1 && must "release $TAG already exists"
 
+# SPINDLE, the code the apps share (the submodule at spindle/, compiled in): checked out at
+# the commit this one pins, with no changes of its own, and that commit on GitHub, where CI
+# fetches it from. Pinned behind Spindle's main is said, not refused: taking a change there
+# is a commit here of its own (spindle/CLAUDE.md). As AlbumWall's release.sh.
+[ -f spindle/Spindle.slnx ] || must "spindle/ is empty: git submodule update --init"
+pinned=$(git rev-parse HEAD:spindle)
+[ "$(git -C spindle rev-parse HEAD 2>/dev/null)" = "$pinned" ] || must "spindle/ is not at the commit this one pins (${pinned:0:7}): git submodule update"
+[ -z "$(git -C spindle status --porcelain)" ] || must "spindle/ has changes of its own"
+git -C spindle fetch -q origin
+git -C spindle branch -r --contains "$pinned" 2>/dev/null | grep -q "origin/main" \
+    || must "spindle's pinned commit ${pinned:0:7} is not on GitHub's main: push Spindle first"
+behind=$(git -C spindle rev-list --count "$pinned..origin/main" 2>/dev/null || echo 0)
+[ "$behind" -eq 0 ] || echo "note: spindle is pinned at ${pinned:0:7}, $behind commit(s) behind Spindle's main; releasing without them"
+
 # PRIVACY (see CLAUDE.md). The repository is public; a release is the moment its
 # state is announced to everyone. Every author and committer in the history must
 # be the GitHub no-reply address, and no tracked file may carry a private LAN
 # address (four-part 10.x, 192.168.x, 172.16-31.x).
 NOREPLY="298062495+gsa700@users.noreply.github.com"
-bad=$(git log HEAD --format='%ae%n%ce' | sort -u | grep -vx "$NOREPLY" || true)
+bad=$( { git log HEAD --format='%ae%n%ce'; git -C spindle log HEAD --format='%ae%n%ce'; } | sort -u | grep -vx "$NOREPLY" || true)
 [ -z "$bad" ] || die "commits by an address other than the no-reply one: $bad (rewrite them before releasing; CLAUDE.md)"
 PRIVATE='\b(10(\.[0-9]{1,3}){3}|192\.168(\.[0-9]{1,3}){2}|172\.(1[6-9]|2[0-9]|3[01])(\.[0-9]{1,3}){2})\b'
-if git grep -qE "$PRIVATE" -- .; then
-    git grep -nE "$PRIVATE" -- . | head -5 >&2
+if git grep --recurse-submodules -qE "$PRIVATE" -- .; then
+    git grep --recurse-submodules -nE "$PRIVATE" -- . | head -5 >&2
     die "a tracked file holds a private network address (above); use the machine's name instead"
 fi
 

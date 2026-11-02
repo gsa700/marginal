@@ -34,7 +34,7 @@ public static class NativeLoading
     /// platform layers. One that is not part of this build is passed over.
     private static readonly string[] Assemblies =
     [
-        "Marginal.Playback", "Avalonia.Base", "Avalonia.X11", "Avalonia.Wayland", "Avalonia.FreeDesktop",
+        "Spindle.Playback", "Avalonia.Base", "Avalonia.X11", "Avalonia.Wayland", "Avalonia.FreeDesktop",
         "Avalonia.OpenGL", "Avalonia.Win32", "Avalonia.Skia", "Avalonia.Controls",
     ];
 

@@ -1,0 +1,3 @@
+[submodule "spindle"]
+	path = spindle
+	url = https://github.com/gsa700/spindle

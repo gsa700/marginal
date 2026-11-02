@@ -32,7 +32,7 @@ rewritten function for function in another language.
 
 - **Apple Lossless (ALAC)** (commit `c38887c`), by Apple — the ALAC decoder's
   core: its adaptive Golomb decoder, dynamic predictor, stereo unmix and
-  channel elements, ported to C# (src/Marginal.Codecs/Alac.cs, which says
+  channel elements, ported to C# (spindle/src/Spindle.Codecs/Alac.cs, which says
   what was changed). Copyright (c) 2011 Apple Inc.
   License: Apache License 2.0.
   Source: https://github.com/macosforge/alac

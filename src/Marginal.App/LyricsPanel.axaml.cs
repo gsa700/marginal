@@ -6,7 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Marginal.Core;
-using Marginal.Playback;
+using Spindle.Playback;
 
 namespace Marginal.App;
 

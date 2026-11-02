@@ -75,7 +75,7 @@ public sealed class ParsingSecurityTests : IDisposable
         // 20,000 deep overflowed the stack in Mp4Track.Walk; now the deep part
         // is ignored and the file is simply one without audio.
         var file = Deep("deep-play.m4a", "ilst", 20000, "moov", "udta", "meta");
-        var e = Record.Exception(() => Marginal.Codecs.Mp4Track.Open(file));
+        var e = Record.Exception(() => Spindle.Codecs.Mp4Track.Open(file));
         Assert.IsNotType<InsufficientExecutionStackException>(e);
     }
 

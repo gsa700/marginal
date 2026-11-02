@@ -53,11 +53,23 @@ places saying so; a fix in one goes to the other.
 - License texts: `tools/fetch-licenses.py` (AlbumWall's, less SQLite); the
   components are named in `THIRD-PARTY-NOTICES.md`.
 
+## Spindle, the code the apps share
+
+`spindle/` is a git submodule: https://github.com/gsa700/spindle (public,
+GPLv3), compiled into the app. Today it holds Hymie (`Spindle.Codecs`,
+`Spindle.Playback`), which replaced the copies in `src/Marginal.Codecs` and
+`src/Marginal.Playback` on 2026-11-02 (and brought the equalizer and
+EndAfterCurrent AlbumWall had added since). Clone with
+`--recurse-submodules` (or `git submodule update --init`); set the no-reply
+author in `spindle/` too. A change to Hymie is made and tested in Spindle,
+pushed there, then taken here by moving the pin (`git -C spindle pull`, build,
+test, commit the `spindle` change). `tools/release.sh` refuses unless
+`spindle/` is at its pinned commit and that commit is on GitHub.
+
 ## Copied code
 
 Kept identical to its source, each file saying so; a fix in one goes to the
-other: `src/Marginal.Codecs` and `src/Marginal.Playback` (AlbumWall's Hymie),
-`ImageSize.cs` (AlbumWall), `WebLimits.cs`, `AppVersion.cs` and `MacWindow.cs` (Deadwax). Made
+other: `ImageSize.cs` (AlbumWall), `WebLimits.cs`, `AppVersion.cs` and `MacWindow.cs` (Deadwax). Made
 from a source and then changed: `MusicBrainzClient.cs` (Deadwax's), the install
 and update code in `src/Marginal.App/Install`, `InstallFlow.cs`,
 `UpdateService.cs`, `MacUpdate.cs`, `MacInstaller.cs`, `WindowsShell.cs`, `WindowPlacement.cs`,

@@ -30,7 +30,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Marginal.Core\Marginal.Core.csproj" />
-    <ProjectReference Include="..\Marginal.Playback\Marginal.Playback.csproj" />
+    <ProjectReference Include="..\..\spindle\src\Spindle.Playback\Spindle.Playback.csproj" />
   </ItemGroup>
 
   <!-- The icon: Assets/icon.svg is the source; tools/make-icon.cs renders
