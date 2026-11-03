@@ -30,6 +30,8 @@ public static class Program
         LogFile.Start(Path.GetDirectoryName(Settings.FilePath)!, "marginal.log");
         Diagnostics.CatchCrashes(App.DisplayName, InstallService.CurrentVersion,
                                  () => NativeWayland ? "native Wayland" : "X11");
+        if (!NativeWayland && ScreenReader.Running)
+            Console.WriteLine("[marginal] backend: X11 through XWayland (a screen reader is running)");
 
         // Who this program is to Windows, before any window exists (WindowsShell).
         WindowsShell.ClaimIdentity();
@@ -81,7 +83,14 @@ public static class Program
         OperatingSystem.IsLinux()
         && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"))
         && Environment.GetEnvironmentVariable("MARGINAL_X11") != "1"
-        && !(OnGnome && string.Equals(Settings.Load().Backend, "x11", StringComparison.OrdinalIgnoreCase));
+        && !(OnGnome && string.Equals(Settings.Load().Backend, "x11", StringComparison.OrdinalIgnoreCase))
+        && !ScreenReader.Running;
+
+    // ScreenReader.Running, last above, is Spindle's (AlbumWall's check): with
+    // a screen reader running the app goes through XWayland. Avalonia 12.1
+    // speaks to screen readers (AT-SPI) only from its X11 backend, and on
+    // native Wayland Orca could not see Marginal at all (Techbench, Fedora 45,
+    // 2026-11-03: 8 of 8 starts off the bus native, 8 of 8 on it with x11).
 
     /// XDG_CURRENT_DESKTOP is a colon-separated list ("GNOME", "ubuntu:GNOME").
     private static bool OnGnome =>
