@@ -56,8 +56,9 @@ places saying so; a fix in one goes to the other.
 ## Spindle, the code the apps share
 
 `spindle/` is a git submodule: https://github.com/gsa700/spindle (public,
-GPLv3), compiled into the app. Today it holds Hymie (`Spindle.Codecs`,
-`Spindle.Playback`), which replaced the copies in `src/Marginal.Codecs` and
+GPLv3), compiled into the app. Marginal takes Hymie (`Spindle.Codecs`,
+`Spindle.Playback`) and the helpers in `Spindle.Core` (namespace `Spindle`)
+from it. Hymie which replaced the copies in `src/Marginal.Codecs` and
 `src/Marginal.Playback` on 2026-11-02 (and brought the equalizer and
 EndAfterCurrent AlbumWall had added since). Clone with
 `--recurse-submodules` (or `git submodule update --init`); set the no-reply
@@ -69,7 +70,9 @@ test, commit the `spindle` change). `tools/release.sh` refuses unless
 ## Copied code
 
 Kept identical to its source, each file saying so; a fix in one goes to the
-other: `ImageSize.cs` (AlbumWall), `WebLimits.cs`, `AppVersion.cs` and `MacWindow.cs` (Deadwax). Made
+other: `ImageSize.cs` (AlbumWall) and `MacWindow.cs` (Deadwax). (`WebLimits`,
+`AppVersion`, `VersionOrder`, `ReleaseFeed`, `LogFile` and `Diagnostics` come
+from Spindle.Core since 2026-11-02.) Made
 from a source and then changed: `MusicBrainzClient.cs` (Deadwax's), the install
 and update code in `src/Marginal.App/Install`, `InstallFlow.cs`,
 `UpdateService.cs`, `MacUpdate.cs`, `MacInstaller.cs`, `WindowsShell.cs`, `WindowPlacement.cs`,

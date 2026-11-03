@@ -51,4 +51,8 @@
   <ItemGroup>
     <TrimmerRootAssembly Include="TagLibSharp" />
   </ItemGroup>
+  <ItemGroup>
+    <Using Include="Spindle" />
+  </ItemGroup>
+
 </Project>

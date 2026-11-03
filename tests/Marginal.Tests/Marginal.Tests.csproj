@@ -33,4 +33,8 @@
     <ProjectReference Include="..\..\src\Marginal.App\Marginal.App.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Using Include="Spindle" />
+  </ItemGroup>
+
 </Project>

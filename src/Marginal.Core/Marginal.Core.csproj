@@ -17,4 +17,14 @@
     <PackageReference Include="SkiaSharp" Version="3.119.4" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Spindle.Core, the helpers the apps share (the submodule at spindle/):
+         WebLimits, AppVersion, VersionOrder, ReleaseFeed, LogFile, Diagnostics. -->
+    <ProjectReference Include="..\..\spindle\src\Spindle.Core\Spindle.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Spindle" />
+  </ItemGroup>
+
 </Project>

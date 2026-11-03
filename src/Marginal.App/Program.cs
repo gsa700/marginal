@@ -15,8 +15,9 @@ internal static class Program
 
         // The log and the crash catcher (Diagnostics). Errors escaping a click
         // are shown and survived (App), and go to the log through Console.Error.
-        LogFile.Start();
-        Diagnostics.CatchCrashes();
+        LogFile.Start(Path.GetDirectoryName(Settings.FilePath)!, "marginal.log");
+        Diagnostics.CatchCrashes(App.DisplayName, Install.InstallService.CurrentVersion,
+                                 () => NativeWayland ? "native Wayland" : "X11");
 
         // Who this program is to Windows, before any window exists (WindowsShell).
         WindowsShell.ClaimIdentity();
