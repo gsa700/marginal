@@ -84,4 +84,5 @@ changed: `MusicBrainzClient.cs` (Deadwax's), the install dialogs
 Preferences sidebar (`PrefsWindow*`) (AlbumWall's); (`WindowPlacement`,
 `WaylandShell`, `WindowButtons`, `DrawnCaptions`, `ConsoleLogSink`, `TextSize`
 and `MacWindow` come from Spindle.Ui since 2026-11-02; TextSize is the merge of
-Marginal's copy and AlbumWall's); `DrawnFrame.cs` (Deadwax's frame: corners, window buttons, resize band, title-bar drag and double click; Marginal adds the shadow and outline layers).
+Marginal's copy and AlbumWall's; `DrawnFrame` too since 2026-11-03, Marginal's own
+made from Deadwax's frame, with the shadow and outline layers Marginal added).
