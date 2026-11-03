@@ -58,7 +58,8 @@ places saying so; a fix in one goes to the other.
 `spindle/` is a git submodule: https://github.com/gsa700/spindle (public,
 GPLv3), compiled into the app. Marginal takes Hymie (`Spindle.Codecs`,
 `Spindle.Playback`), the helpers in `Spindle.Core` (namespace `Spindle`) and
-the install and update code in `Spindle.Install` from it; `Program.Identity`
+the install and update code in `Spindle.Install` and the window code in
+`Spindle.Ui` from it; `Program.Identity`
 (an `AppInfo`) tells Spindle which app this is, first thing in Main. Hymie which replaced the copies in `src/Marginal.Codecs` and
 `src/Marginal.Playback` on 2026-11-02 (and brought the equalizer and
 EndAfterCurrent AlbumWall had added since). Clone with
@@ -78,5 +79,7 @@ from Spindle.Core since 2026-11-02, and the install and update code
 and the rest of what was `src/Marginal.App/Install`) from Spindle.Install,
 told it is Marginal by `Program.Identity`.) Made from a source and then
 changed: `MusicBrainzClient.cs` (Deadwax's), the install dialogs
-`InstallFlow.cs` and `MacInstaller.cs`, `WindowPlacement.cs`, `WaylandShell.cs`
-and `tools/` (Deadwax's); `WindowButtons.cs`, `DrawnCaptions.cs`, `TextSize.cs` and the Preferences sidebar (`PrefsWindow*`) (AlbumWall's); `DrawnFrame.cs` (Deadwax's frame: corners, window buttons, resize band, title-bar drag and double click; Marginal adds the shadow and outline layers).
+`InstallFlow.cs` and `MacInstaller.cs`, and `tools/` (Deadwax's); `TextSize.cs`
+and the Preferences sidebar (`PrefsWindow*`) (AlbumWall's); (`WindowPlacement`,
+`WaylandShell`, `WindowButtons`, `DrawnCaptions` and `ConsoleLogSink` come from
+Spindle.Ui since 2026-11-02); `DrawnFrame.cs` (Deadwax's frame: corners, window buttons, resize band, title-bar drag and double click; Marginal adds the shadow and outline layers).

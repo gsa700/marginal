@@ -34,6 +34,9 @@
     <!-- Spindle.Install, the install and update code the apps share (told which
          app this is by AppInfo, in Program.Main). -->
     <ProjectReference Include="..\..\spindle\src\Spindle.Install\Spindle.Install.csproj" />
+    <!-- Spindle.Ui, the window code the apps share (told how windows are drawn
+         on Linux by WindowSystem.NativeWayland, in Program.Main). -->
+    <ProjectReference Include="..\..\spindle\src\Spindle.Ui\Spindle.Ui.csproj" />
   </ItemGroup>
 
   <!-- The icon: Assets/icon.svg is the source; tools/make-icon.cs renders
@@ -57,6 +60,7 @@
   <ItemGroup>
     <Using Include="Spindle" />
     <Using Include="Spindle.Install" />
+    <Using Include="Spindle.Ui" />
   </ItemGroup>
 
 </Project>

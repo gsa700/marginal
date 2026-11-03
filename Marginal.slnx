@@ -7,6 +7,7 @@
     <Project Path="tests/Marginal.Tests/Marginal.Tests.csproj" />
   </Folder>
   <Folder Name="/spindle/">
+    <Project Path="spindle/src/Spindle.Ui/Spindle.Ui.csproj" />
     <Project Path="spindle/src/Spindle.Core/Spindle.Core.csproj" />
     <Project Path="spindle/src/Spindle.Codecs/Spindle.Codecs.csproj" />
     <Project Path="spindle/src/Spindle.Playback/Spindle.Playback.csproj" />

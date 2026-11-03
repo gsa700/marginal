@@ -21,6 +21,7 @@ public static class Program
     public static int Main(string[] args)
     {
         AppInfo.Use(Identity);
+        WindowSystem.NativeWayland = NativeWayland;     // for Spindle.Ui (WaylandShell, WindowPlacement, DrawnCaptions)
         // System libraries from the system's places, before anything loads one (NativeLoading).
         NativeLoading.Install();
 
