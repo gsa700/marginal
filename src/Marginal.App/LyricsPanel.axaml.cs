@@ -554,7 +554,7 @@ public sealed partial class LyricsPanel : UserControl
     /// True when something went to Pending.
     private async Task<bool> Find(TrackFile track, CancellationToken ct, bool automatic)
     {
-        _lrclib ??= new LrcLibClient();
+        _lrclib ??= new LrcLibClient(userAgent: $"Marginal/{AppVersion.Current} ( https://github.com/gsa700/marginal )");
         var artist = track.Get(FieldMap.Artist) ?? _album?.Artist ?? "";
         var title = track.Get(FieldMap.Title) ?? Path.GetFileNameWithoutExtension(track.FileName);
         var album = track.Get(FieldMap.Album) ?? _album?.Title ?? "";

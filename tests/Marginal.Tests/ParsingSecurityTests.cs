@@ -79,52 +79,8 @@ public sealed class ParsingSecurityTests : IDisposable
         Assert.IsNotType<InsufficientExecutionStackException>(e);
     }
 
-    // ---- A3, A4, A10: lyrics -------------------------------------------------
-
-    private const string Huge = "[offset:99999999999]\n[00:01.00] first line\n[00:05.00] second line";
-
-    [Fact]
-    public void Offset_too_large_is_no_offset()
-    {
-        Assert.Equal(TimeSpan.Zero, Lrc.Offset(Huge));
-        Assert.Equal(2, Lrc.Parse(Huge).Count);
-        Assert.Equal(2, Lrc.LineAt(Huge, TimeSpan.FromSeconds(6)));   // line 0 is the header
-        Assert.Contains("[00:03.00] first line", Lrc.ShiftAll(Huge, TimeSpan.FromSeconds(2)));
-    }
-
-    [Fact]
-    public void Offset_is_applied_when_playing()
-    {
-        const string text = "[offset:+2000]\n[00:03.00] first\n[00:10.00] second";
-        Assert.Equal(TimeSpan.FromSeconds(2), Lrc.Offset(text));
-        Assert.Equal(1, Lrc.LineAt(text, TimeSpan.FromSeconds(1.5)));   // 3 s - 2 s; line 0 is the header
-        Assert.Equal(-1, Lrc.LineAt(text, TimeSpan.FromSeconds(0.5)));
-        Assert.Equal(TimeSpan.FromSeconds(3), Lrc.TimeOf("[00:03.00] first"));   // as written
-    }
-
-    [Fact]
-    public void Blank_lines_are_read_in_linear_time()
-    {
-        var text = "a" + new string('\n', 300_000) + "b";
-        var clock = Stopwatch.StartNew();
-        Assert.Equal(LyricsKind.Plain, TrackReader.KindOf(text));
-        Assert.Equal(TimeSpan.Zero, Lrc.Offset(text));
-        Assert.True(clock.ElapsedMilliseconds < 1000, $"{clock.ElapsedMilliseconds} ms");
-    }
-
-    [Fact]
-    public void Long_lyrics_shift_and_play_quickly()
-    {
-        var text = string.Join('\n', Enumerable.Range(0, 20_000).Select(i => $"[{i / 60 % 100:00}:{i % 60:00}.00] line {i}"));
-        var clock = Stopwatch.StartNew();
-        var shifted = Lrc.ShiftAll(text, TimeSpan.FromSeconds(1));
-        Assert.True(clock.ElapsedMilliseconds < 2000, $"ShiftAll {clock.ElapsedMilliseconds} ms");
-        Assert.StartsWith("[00:01.00] line 0", shifted);
-        var timeline = Lrc.TimelineOf(text);
-        clock.Restart();
-        for (var i = 0; i < 20; i++) timeline.LineAt(TimeSpan.FromMinutes(10));
-        Assert.True(clock.ElapsedMilliseconds < 500, $"LineAt {clock.ElapsedMilliseconds} ms for 20");
-    }
+    // ---- A3, A4, A10 (lyrics) and the LRCLIB answers: tested in Spindle (LrcTests,
+    // LrcLibTests) with the code, since 2026-11-02.
 
     // ---- A2, A8: web answers of the wrong shape ----------------------------------
 
@@ -153,37 +109,6 @@ public sealed class ParsingSecurityTests : IDisposable
     }
 
     private const string Html = "<html><body>Down for maintenance</body></html>";
-
-    [Fact]
-    public async Task LrcLib_maintenance_page_is_LRCLIB_failing()
-    {
-        using var lrc = new LrcLibClient(new Answer(HttpStatusCode.OK, Html, "text/html"));
-        await Assert.ThrowsAsync<LrcLibException>(() => lrc.SearchAsync("a", "b"));
-        await Assert.ThrowsAsync<LrcLibException>(() => lrc.GetAsync("a", "b", "c", TimeSpan.FromMinutes(3)));
-    }
-
-    [Fact]
-    public async Task LrcLib_odd_values_are_read_as_none()
-    {
-        const string body = """[{"id":1.5,"trackName":"T","artistName":"A","duration":-1e300,"syncedLyrics":"[00:01.00] x"}, 5, "x", {"id":3e30}]""";
-        using var lrc = new LrcLibClient(new Answer(HttpStatusCode.OK, body));
-        var results = await lrc.SearchAsync("A", "T");
-        Assert.Equal(2, results.Count);
-        Assert.Equal(0, results[0].Id);
-        Assert.Equal(0, results[0].Duration);
-        var fit = LrcLibClient.Fit(results[0], "A", "T", TimeSpan.FromMinutes(3));
-        Assert.False(fit.Automatic);
-        Assert.Equal("length unknown", fit.Text);
-        Assert.Empty(await new LrcLibClient(new Answer(HttpStatusCode.OK, "[1,2]")).SearchAsync("A", "T"));
-        Assert.Null(await new LrcLibClient(new Answer(HttpStatusCode.OK, "[1,2]")).GetAsync("A", "T", "", TimeSpan.Zero));
-    }
-
-    [Fact]
-    public async Task LrcLib_endless_answer_is_cut_off()
-    {
-        using var lrc = new LrcLibClient(new Endless());
-        await Assert.ThrowsAsync<LrcLibException>(() => lrc.SearchAsync("a", "b"));
-    }
 
     [Fact]
     public async Task MusicBrainz_maintenance_page_is_MusicBrainz_failing()

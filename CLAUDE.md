@@ -59,7 +59,8 @@ places saying so; a fix in one goes to the other.
 GPLv3), compiled into the app. Marginal takes Hymie (`Spindle.Codecs`,
 `Spindle.Playback`), the helpers in `Spindle.Core` (namespace `Spindle`) and
 the install and update code in `Spindle.Install` and the window code in
-`Spindle.Ui` from it; `Program.Identity`
+`Spindle.Ui` from it, and the LRCLIB client, LRC and Json in `Spindle.Core`
+(LyricsPanel passes Marginal's own user agent); `Program.Identity`
 (an `AppInfo`) tells Spindle which app this is, first thing in Main. Hymie which replaced the copies in `src/Marginal.Codecs` and
 `src/Marginal.Playback` on 2026-11-02 (and brought the equalizer and
 EndAfterCurrent AlbumWall had added since). Clone with

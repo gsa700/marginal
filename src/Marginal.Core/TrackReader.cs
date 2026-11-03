@@ -14,8 +14,6 @@ namespace Marginal.Core;
 
 public enum AudioFormat { Flac, Mp3, M4a }
 
-public enum LyricsKind { None, Plain, Synced }
-
 /// One frame or comment as stored: `Key` is what the format calls it.
 /// `Junk` marks what a clean-up would offer to remove (store and player
 /// leftovers, not music metadata).
@@ -91,17 +89,9 @@ public static partial class TrackReader
         _ => null,
     };
 
-    /// Lines that start with an LRC time code: "[01:12.40]".
-    // [ \t]*, not \s*: \s also matches the line ends, and on a lyric of blank
-    // lines that made every match attempt run on to the end (quadratic: 10 s
-    // for a 600 KB tag; security review 2026-10-31, A4).
-    [GeneratedRegex(@"^[ \t]*\[\d{1,3}:\d{2}([.:]\d{1,3})?\]", RegexOptions.Multiline)]
-    private static partial Regex LrcLine();
-
-    public static LyricsKind KindOf(string? lyrics) =>
-        string.IsNullOrWhiteSpace(lyrics) ? LyricsKind.None
-        : LrcLine().IsMatch(lyrics) ? LyricsKind.Synced
-        : LyricsKind.Plain;
+    /// None, plain or synced: Spindle's Lrc.KindOf, moved there with the LRC
+    /// code 2026-11-02 (with its anchored, linear-time pattern: A4).
+    public static LyricsKind KindOf(string? lyrics) => Lrc.KindOf(lyrics);
 
     /// TagLib#'s reader for a file, after the checks that keep a crafted file
     /// from taking the app down: an MP4 nested too deep is refused

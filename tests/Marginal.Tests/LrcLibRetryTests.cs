@@ -9,55 +9,7 @@ namespace Marginal.Tests;
 /// lyrics for the album after its first track). No real LRCLIB is asked.
 public sealed class LrcLibRetryTests
 {
-    private static readonly TimeSpan[] NoWait = [TimeSpan.Zero, TimeSpan.Zero];
-
-    /// Answers with each status in turn, then the last one forever; counts the questions.
-    private sealed class Script(params HttpStatusCode[] codes) : HttpMessageHandler
-    {
-        public int Asked;
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            var code = codes[Math.Min(Asked, codes.Length - 1)];
-            Asked++;
-            return Task.FromResult(new HttpResponseMessage(code) { Content = new StringContent("[]", Encoding.UTF8, "application/json") });
-        }
-    }
-
-    [Fact]
-    public async Task A_503_is_asked_three_times_before_giving_up()
-    {
-        var script = new Script(HttpStatusCode.ServiceUnavailable);
-        using var lrc = new LrcLibClient(script, NoWait);
-        var e = await Assert.ThrowsAsync<LrcLibException>(() => lrc.SearchAsync("A", "T"));
-        Assert.Equal(3, script.Asked);
-        Assert.Contains("503", e.Message);
-    }
-
-    [Fact]
-    public async Task An_answer_on_the_third_try_is_taken()
-    {
-        var script = new Script(HttpStatusCode.ServiceUnavailable, HttpStatusCode.BadGateway, HttpStatusCode.OK);
-        using var lrc = new LrcLibClient(script, NoWait);
-        Assert.Empty(await lrc.SearchAsync("A", "T"));
-        Assert.Equal(3, script.Asked);
-    }
-
-    [Fact]
-    public async Task Not_found_and_other_4xx_are_not_asked_again()
-    {
-        var notFound = new Script(HttpStatusCode.NotFound);
-        using (var lrc = new LrcLibClient(notFound, NoWait)) Assert.Null(await lrc.GetAsync("A", "T", "", TimeSpan.Zero));
-        Assert.Equal(1, notFound.Asked);
-
-        var tooMany = new Script(HttpStatusCode.TooManyRequests);
-        using (var lrc = new LrcLibClient(tooMany, NoWait)) await Assert.ThrowsAsync<LrcLibException>(() => lrc.SearchAsync("A", "T"));
-        Assert.Equal(1, tooMany.Asked);
-    }
-
-    [Fact]
-    public void The_default_waits_are_2_then_6_seconds() =>
-        Assert.Equal([TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(6)], LrcLibClient.DefaultRetryWaits);
+    // The retries are tested in Spindle (LrcLibTests), with the client, since 2026-11-02.
 
     [Fact]
     public void The_album_note_says_what_was_not_asked()
