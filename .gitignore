@@ -8,3 +8,6 @@ dist/
 .DS_Store
 # Left over in older checkouts: the native libraries no build has used since 0.7.4.
 native/
+
+# A run with HOME pointing nowhere would write its settings and log here.
+.config/

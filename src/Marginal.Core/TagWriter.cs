@@ -100,7 +100,7 @@ public static class TagWriter
                 Environment.SpecialFolderOption.DoNotVerify), "marginal", "backups");
         var state = Environment.GetEnvironmentVariable("XDG_STATE_HOME");
         if (string.IsNullOrEmpty(state) || !Path.IsPathRooted(state))
-            state = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "state");
+            state = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify), ".local", "state");
         return Path.Combine(state, "marginal", "backups");
     }
 

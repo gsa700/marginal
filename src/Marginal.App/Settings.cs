@@ -50,7 +50,7 @@ public sealed class Settings
     public string? Backend { get; set; }
 
     internal static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config", "marginal", "settings.json");
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify), ".config", "marginal", "settings.json");
 
     public static Settings Load()
     {
