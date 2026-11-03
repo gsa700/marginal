@@ -72,14 +72,15 @@ test, commit the `spindle` change). `tools/release.sh` refuses unless
 ## Copied code
 
 Kept identical to its source, each file saying so; a fix in one goes to the
-other: `ImageSize.cs` (AlbumWall) and `MacWindow.cs` (Deadwax). (`WebLimits`,
+other: `ImageSize.cs` (AlbumWall). (`WebLimits`,
 `AppVersion`, `VersionOrder`, `ReleaseFeed`, `LogFile` and `Diagnostics` come
 from Spindle.Core since 2026-11-02, and the install and update code
 (`InstallService`, `UpdateService`, `MacUpdate`, `WindowsShell`, `PowerShell`
 and the rest of what was `src/Marginal.App/Install`) from Spindle.Install,
 told it is Marginal by `Program.Identity`.) Made from a source and then
 changed: `MusicBrainzClient.cs` (Deadwax's), the install dialogs
-`InstallFlow.cs` and `MacInstaller.cs`, and `tools/` (Deadwax's); `TextSize.cs`
-and the Preferences sidebar (`PrefsWindow*`) (AlbumWall's); (`WindowPlacement`,
-`WaylandShell`, `WindowButtons`, `DrawnCaptions` and `ConsoleLogSink` come from
-Spindle.Ui since 2026-11-02); `DrawnFrame.cs` (Deadwax's frame: corners, window buttons, resize band, title-bar drag and double click; Marginal adds the shadow and outline layers).
+`InstallFlow.cs` and `MacInstaller.cs`, and `tools/` (Deadwax's); the
+Preferences sidebar (`PrefsWindow*`) (AlbumWall's); (`WindowPlacement`,
+`WaylandShell`, `WindowButtons`, `DrawnCaptions`, `ConsoleLogSink`, `TextSize`
+and `MacWindow` come from Spindle.Ui since 2026-11-02; TextSize is the merge of
+Marginal's copy and AlbumWall's); `DrawnFrame.cs` (Deadwax's frame: corners, window buttons, resize band, title-bar drag and double click; Marginal adds the shadow and outline layers).
