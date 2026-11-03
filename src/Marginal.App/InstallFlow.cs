@@ -3,7 +3,6 @@
 // install or update logic goes to both (and AlbumWall's, from which Deadwax's came).
 //
 using Avalonia.Controls;
-using Marginal.App.Install;
 
 namespace Marginal.App;
 

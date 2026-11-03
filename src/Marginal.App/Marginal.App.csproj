@@ -31,6 +31,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Marginal.Core\Marginal.Core.csproj" />
     <ProjectReference Include="..\..\spindle\src\Spindle.Playback\Spindle.Playback.csproj" />
+    <!-- Spindle.Install, the install and update code the apps share (told which
+         app this is by AppInfo, in Program.Main). -->
+    <ProjectReference Include="..\..\spindle\src\Spindle.Install\Spindle.Install.csproj" />
   </ItemGroup>
 
   <!-- The icon: Assets/icon.svg is the source; tools/make-icon.cs renders
@@ -53,6 +56,7 @@
   </ItemGroup>
   <ItemGroup>
     <Using Include="Spindle" />
+    <Using Include="Spindle.Install" />
   </ItemGroup>
 
 </Project>

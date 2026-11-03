@@ -57,8 +57,9 @@ places saying so; a fix in one goes to the other.
 
 `spindle/` is a git submodule: https://github.com/gsa700/spindle (public,
 GPLv3), compiled into the app. Marginal takes Hymie (`Spindle.Codecs`,
-`Spindle.Playback`) and the helpers in `Spindle.Core` (namespace `Spindle`)
-from it. Hymie which replaced the copies in `src/Marginal.Codecs` and
+`Spindle.Playback`), the helpers in `Spindle.Core` (namespace `Spindle`) and
+the install and update code in `Spindle.Install` from it; `Program.Identity`
+(an `AppInfo`) tells Spindle which app this is, first thing in Main. Hymie which replaced the copies in `src/Marginal.Codecs` and
 `src/Marginal.Playback` on 2026-11-02 (and brought the equalizer and
 EndAfterCurrent AlbumWall had added since). Clone with
 `--recurse-submodules` (or `git submodule update --init`); set the no-reply
@@ -72,8 +73,10 @@ test, commit the `spindle` change). `tools/release.sh` refuses unless
 Kept identical to its source, each file saying so; a fix in one goes to the
 other: `ImageSize.cs` (AlbumWall) and `MacWindow.cs` (Deadwax). (`WebLimits`,
 `AppVersion`, `VersionOrder`, `ReleaseFeed`, `LogFile` and `Diagnostics` come
-from Spindle.Core since 2026-11-02.) Made
-from a source and then changed: `MusicBrainzClient.cs` (Deadwax's), the install
-and update code in `src/Marginal.App/Install`, `InstallFlow.cs`,
-`UpdateService.cs`, `MacUpdate.cs`, `MacInstaller.cs`, `WindowsShell.cs`, `WindowPlacement.cs`,
-`PowerShell.cs`, `WaylandShell.cs` and `tools/` (Deadwax's); `WindowButtons.cs`, `DrawnCaptions.cs`, `TextSize.cs` and the Preferences sidebar (`PrefsWindow*`) (AlbumWall's); `DrawnFrame.cs` (Deadwax's frame: corners, window buttons, resize band, title-bar drag and double click; Marginal adds the shadow and outline layers).
+from Spindle.Core since 2026-11-02, and the install and update code
+(`InstallService`, `UpdateService`, `MacUpdate`, `WindowsShell`, `PowerShell`
+and the rest of what was `src/Marginal.App/Install`) from Spindle.Install,
+told it is Marginal by `Program.Identity`.) Made from a source and then
+changed: `MusicBrainzClient.cs` (Deadwax's), the install dialogs
+`InstallFlow.cs` and `MacInstaller.cs`, `WindowPlacement.cs`, `WaylandShell.cs`
+and `tools/` (Deadwax's); `WindowButtons.cs`, `DrawnCaptions.cs`, `TextSize.cs` and the Preferences sidebar (`PrefsWindow*`) (AlbumWall's); `DrawnFrame.cs` (Deadwax's frame: corners, window buttons, resize band, title-bar drag and double click; Marginal adds the shadow and outline layers).

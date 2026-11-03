@@ -2,21 +2,32 @@ using Avalonia;
 
 namespace Marginal.App;
 
-internal static class Program
+public static class Program
 {
     /// Set when this run exists only to uninstall: ask, act, and go (InstallFlow).
     public static bool PendingUninstall { get; private set; }
 
+    /// Which app this is, for Spindle's install and update code: everything
+    /// else (folders, files, repository, bundle id) follows from the name.
+    public static AppInfo Identity => new()
+    {
+        Name = App.DisplayName,
+        Description = "Notes in the margins of your music library: tags, art and lyrics",
+        DataDir = Path.GetDirectoryName(Settings.FilePath)!,
+        AppAssembly = typeof(Program).Assembly,
+    };
+
     [STAThread]
     public static int Main(string[] args)
     {
+        AppInfo.Use(Identity);
         // System libraries from the system's places, before anything loads one (NativeLoading).
         NativeLoading.Install();
 
         // The log and the crash catcher (Diagnostics). Errors escaping a click
         // are shown and survived (App), and go to the log through Console.Error.
         LogFile.Start(Path.GetDirectoryName(Settings.FilePath)!, "marginal.log");
-        Diagnostics.CatchCrashes(App.DisplayName, Install.InstallService.CurrentVersion,
+        Diagnostics.CatchCrashes(App.DisplayName, InstallService.CurrentVersion,
                                  () => NativeWayland ? "native Wayland" : "X11");
 
         // Who this program is to Windows, before any window exists (WindowsShell).
@@ -27,27 +38,27 @@ internal static class Program
         // uninstall never opens a window. `--uninstall --quiet` is what winget
         // and the Installed-apps entry run; plain `--uninstall` opens the
         // window only to ask.
-        var request = Install.InstallCommandLine.Parse(args);
+        var request = InstallCommandLine.Parse(args);
         try
         {
             switch (request.Action)
             {
-                case Install.InstallAction.Install:
-                    var installed = Install.InstallService.Install();
+                case InstallAction.Install:
+                    var installed = InstallService.Install();
                     Console.WriteLine($"Installed to {installed.ExePath}");
-                    if (!request.Quiet) Install.InstallService.LaunchDetached(installed.ExePath);
+                    if (!request.Quiet) InstallService.LaunchDetached(installed.ExePath);
                     return installed.Registered ? 0 : 2;
 
-                case Install.InstallAction.Uninstall when request.Quiet:
-                    Install.InstallService.Uninstall(new Install.UninstallOptions(RemoveSettings: false));
+                case InstallAction.Uninstall when request.Quiet:
+                    InstallService.Uninstall(new UninstallOptions(RemoveSettings: false));
                     return 0;
 
-                case Install.InstallAction.Uninstall:
+                case InstallAction.Uninstall:
                     PendingUninstall = true;
                     break;
             }
         }
-        catch (Install.InstallBlockedException ex)
+        catch (InstallBlockedException ex)
         {
             Console.Error.WriteLine(ex.Message);
             return 1;

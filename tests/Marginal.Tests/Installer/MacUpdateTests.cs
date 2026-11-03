@@ -248,7 +248,7 @@ public class MacDiscTests
 public class MacInstallerTests
 {
     private static IReadOnlyList<(string MountPoint, string Name)> Disks() =>
-        (IReadOnlyList<(string, string)>)typeof(MacUpdate).Assembly.GetType("Marginal.App.MacInstaller")!
+        (IReadOnlyList<(string, string)>)typeof(Marginal.App.Program).Assembly.GetType("Marginal.App.MacInstaller")!
             .GetMethod("InstallerDisks")!.Invoke(null, null)!;
 
     [Fact]
