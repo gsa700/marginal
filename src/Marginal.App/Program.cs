@@ -22,8 +22,10 @@ public static class Program
     {
         AppInfo.Use(Identity);
         WindowSystem.NativeWayland = NativeWayland;     // for Spindle.Ui (WaylandShell, WindowPlacement, DrawnCaptions)
-        // System libraries from the system's places, before anything loads one (NativeLoading).
-        NativeLoading.Install();
+        // System libraries from the system's places, before anything loads one
+        // (Spindle's NativeLoading, which replaced Marginal's own on 2026-11-05:
+        // that one missed NWayland, so a planted libwayland-client.so.0 was loaded).
+        Spindle.NativeLoading.Install([.. Identity.NativeLibrariesUnix, .. Identity.NativeLibrariesWindows], typeof(Program).Assembly.GetName().Name!);
 
         // The log and the crash catcher (Diagnostics). Errors escaping a click
         // are shown and survived (App), and go to the log through Console.Error.

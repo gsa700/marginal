@@ -54,21 +54,5 @@ public sealed class InstallSecurityTests
     // tested in Spindle (InstallCommandLineTests), with the code, since 2026-11-02.
 }
 
-public sealed class NativeLoadingTests
-{
-    // ---- C2: system libraries from the system's places ---------------------------
-
-    [Theory]
-    [InlineData("libSkiaSharp", true)]
-    [InlineData("libHarfBuzzSharp.so", true)]
-    [InlineData("av_libglesv2.dll", true)]
-    [InlineData("libpulse-simple.so.0", false)]
-    [InlineData("libX11.so.6", false)]
-    [InlineData("dwmapi.dll", false)]
-    public void Only_the_shipped_libraries_come_from_beside_the_program(string library, bool beside) =>
-        Assert.Equal(beside, Marginal.App.NativeLoading.IsBeside(library));
-
-    [Fact]
-    public void A_library_the_system_lacks_falls_back_to_the_default_search() =>
-        Assert.Equal(IntPtr.Zero, Marginal.App.NativeLoading.Resolve("libmarginal-no-such-library.so.9", typeof(NativeLoadingTests).Assembly, null));
-}
+// C2 (system libraries from the system's places) is tested in Spindle
+// (NativeLoadingTests), with the code, since 2026-11-05.
