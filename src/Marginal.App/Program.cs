@@ -101,7 +101,7 @@ public static class Program
 
     public static AppBuilder BuildAvaloniaApp()
     {
-        var builder = AppBuilder.Configure<App>().UsePlatformDetect().WithInterFont()
+        var builder = AppBuilder.Configure<App>().UseSystemPlatform().WithInterFont()   // Spindle.Ui: UsePlatformDetect, plus FreeBSD
             // Avalonia's own warnings (bindings, layout) into the log, not nowhere.
             .AfterSetup(_ => Avalonia.Logging.Logger.Sink = new ConsoleLogSink(Avalonia.Logging.LogEventLevel.Warning));
         // The system draws the title bar for now; Deadwax's drawn title bar
