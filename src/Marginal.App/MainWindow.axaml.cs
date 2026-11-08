@@ -38,6 +38,7 @@ public sealed partial class MainWindow : Window
         // inside the frame, so the frame stays its own size (TextSize).
         TextSize.Choose(_settings.TextSize);
         TextSize.Follow(this);
+        ScaleFollow.Keep(this);  // keeps its size across a monitor scale change (X11, Spindle.Ui)
         SetUpKeys();
         // The tab strip is the title bar, on the Mac too (DrawnFrame).
         TitleText.IsVisible = true;
