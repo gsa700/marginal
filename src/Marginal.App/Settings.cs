@@ -45,10 +45,6 @@ public sealed class Settings
     public bool LyricsTab { get; set; }
     public bool RawView { get; set; }
 
-    /// "x11" runs under XWayland on a GNOME Wayland session (Program.NativeWayland).
-    /// Hand-edited, not in Preferences; absent means the default, native Wayland.
-    public string? Backend { get; set; }
-
     internal static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify), ".config", "marginal", "settings.json");
 

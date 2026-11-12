@@ -73,19 +73,16 @@ public static class Program
     }
 
     /// Native Wayland wherever a Wayland session exists, as AlbumWall and
-    /// Deadwax do. MARGINAL_X11=1 goes back through XWayland.
+    /// Deadwax do, on Linux. Not FreeBSD yet (Avalonia's Wayland backend fails
+    /// there at start; see AlbumWall).
     ///
-    /// "Backend": "x11" in settings.json does the same for good, on one
-    /// machine, on GNOME only (AlbumWall's setting, and the same reasons): a
-    /// Wayland client cannot place its window, so it never reopens where it
-    /// was, and mutter maximizes any window that opens over 80% of the screen
-    /// both ways, so a large remembered size came back maximized (Techbench,
-    /// 2026-10-31; Dave: "use Xwayland"). Hand-edited, not in Preferences.
+    /// DROPPED 2026-11-11 (Dave): MARGINAL_X11=1 and the "Backend": "x11"
+    /// setting (2026-10-31, GNOME only: a Wayland client cannot place its
+    /// window, and mutter maximized a large remembered size). A workaround for
+    /// window memory on GNOME; X11 is only the fallback now.
     public static readonly bool NativeWayland =
         OperatingSystem.IsLinux()
         && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"))
-        && Environment.GetEnvironmentVariable("MARGINAL_X11") != "1"
-        && !(OnGnome && string.Equals(Settings.Load().Backend, "x11", StringComparison.OrdinalIgnoreCase))
         && !ScreenReader.Running;
 
     // ScreenReader.Running, last above, is Spindle's (AlbumWall's check): with
@@ -93,11 +90,6 @@ public static class Program
     // speaks to screen readers (AT-SPI) only from its X11 backend, and on
     // native Wayland Orca could not see Marginal at all (Techbench, Fedora 45,
     // 2026-11-03: 8 of 8 starts off the bus native, 8 of 8 on it with x11).
-
-    /// XDG_CURRENT_DESKTOP is a colon-separated list ("GNOME", "ubuntu:GNOME").
-    private static bool OnGnome =>
-        (Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP") ?? "")
-            .Split(':').Contains("GNOME", StringComparer.OrdinalIgnoreCase);
 
     public static AppBuilder BuildAvaloniaApp()
     {
